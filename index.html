@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f2faf9" />
+    <meta
+      name="description"
+      content="机器鱼 PCB 网页串口调试与外设状态监控工具"
+    />
+    <title>FishLink · 机器鱼控制台</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-a" aria-hidden="true"></div>
+    <div class="ambient ambient-b" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="FishLink 首页">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" role="img">
+            <path d="M8 24c7-9 18-11 27-4l7-6v20l-7-6C26 35 15 33 8 24Z" />
+            <circle cx="30" cy="21" r="2" />
+          </svg>
+        </span>
+        <span>
+          <strong>FISH<span>LINK</span></strong>
+          <small>机器鱼控制台</small>
+        </span>
+      </a>
+
+      <div class="connection-state">
+        <span class="status-dot" id="connectionDot"></span>
+        <div>
+          <strong id="connectionLabel">设备未连接</strong>
+          <small id="connectionHint">请选择波特率并连接设备</small>
+        </div>
+      </div>
+
+      <div class="connection-actions">
+        <div class="field compact-field">
+          <span id="baudLabel">波特率</span>
+          <div class="baud-select" id="baudSelect">
+            <button
+              class="baud-trigger"
+              id="baudTrigger"
+              type="button"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="baudMenu"
+              aria-labelledby="baudLabel baudSelected"
+            >
+              <span id="baudSelected">115,200</span>
+              <i aria-hidden="true"></i>
+            </button>
+            <div class="baud-menu" id="baudMenu" role="listbox" aria-label="串口波特率" hidden>
+              <button class="baud-option" type="button" role="option" data-value="9600" aria-selected="false">9,600</button>
+              <button class="baud-option selected" type="button" role="option" data-value="115200" aria-selected="true">115,200</button>
+            </div>
+            <input id="baudRate" type="hidden" value="115200" />
+          </div>
+        </div>
+        <button class="button primary" id="connectButton" type="button">
+          <span class="button-icon" aria-hidden="true">⚡</span>
+          连接设备
+        </button>
+      </div>
+
+    </header>
+
+    <main class="dashboard">
+      <section class="panel overview-panel" aria-labelledby="overviewTitle">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">3D ATTITUDE</p>
+            <h1 id="overviewTitle">IMU 姿态</h1>
+          </div>
+          <span class="mode-chip">接口待接入</span>
+        </div>
+
+        <div class="imu-placeholder">
+          <div class="attitude-viewport" aria-label="静态三维坐标系与姿态正方体占位图">
+            <div class="attitude-world">
+              <div class="reference-grid" aria-hidden="true"></div>
+              <div class="axis axis-x" aria-hidden="true"><span>X</span></div>
+              <div class="axis axis-y" aria-hidden="true"><span>Y</span></div>
+              <div class="axis axis-z" aria-hidden="true"><span>Z</span></div>
+              <div class="pose-cube" id="poseCube" aria-hidden="true">
+                <i class="cube-face cube-front">F</i>
+                <i class="cube-face cube-back"></i>
+                <i class="cube-face cube-right">R</i>
+                <i class="cube-face cube-left"></i>
+                <i class="cube-face cube-top">TOP</i>
+                <i class="cube-face cube-bottom"></i>
+              </div>
+            </div>
+          </div>
+          <div class="imu-placeholder-note">
+            <span class="placeholder-dot"></span>
+            <div>
+              <strong>IMU 数据尚未接入</strong>
+              <small>未来将根据 Roll、Pitch、Yaw 实时旋转正方体</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel chart-panel" aria-labelledby="chartTitle">
+        <div class="panel-heading chart-heading">
+          <div>
+            <p class="eyebrow">IMU STREAM</p>
+            <h2 id="chartTitle">IMU 实时遥测</h2>
+          </div>
+          <div class="chart-window">
+            <span class="live-pulse"></span>
+            <b id="packetRate">0</b> Hz · 近 30 秒
+          </div>
+        </div>
+        <div class="chart-legend" aria-label="曲线图例">
+          <span><i style="--series:#e96868"></i>X 轴</span>
+          <span><i style="--series:#26a976"></i>Y 轴</span>
+          <span><i style="--series:#4c88d2"></i>Z 轴</span>
+        </div>
+        <div class="imu-chart-stack">
+          <article class="imu-chart-card">
+            <header>
+              <div><strong>姿态角</strong><small>Roll / Pitch / Yaw</small></div>
+              <em>°</em>
+            </header>
+            <div class="imu-canvas-wrap"><canvas id="attitudeChart" aria-label="IMU 三轴姿态角曲线"></canvas></div>
+          </article>
+          <article class="imu-chart-card">
+            <header>
+              <div><strong>角速度</strong><small>Gyro X / Y / Z</small></div>
+              <em>°/s</em>
+            </header>
+            <div class="imu-canvas-wrap"><canvas id="gyroChart" aria-label="IMU 三轴角速度曲线"></canvas></div>
+          </article>
+          <article class="imu-chart-card">
+            <header>
+              <div><strong>角加速度</strong><small>Angular Accel X / Y / Z</small></div>
+              <em>°/s²</em>
+            </header>
+            <div class="imu-canvas-wrap"><canvas id="angularAccelChart" aria-label="IMU 三轴角加速度曲线"></canvas></div>
+          </article>
+          <div class="chart-empty" id="chartEmpty">
+            <span>⌁</span>
+            <strong>等待 IMU 遥测数据</strong>
+            <small>连接 PCB 后将显示三轴曲线</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel console-panel" aria-labelledby="consoleTitle">
+        <div class="panel-heading console-heading">
+          <div>
+            <p class="eyebrow">SERIAL ASSISTANT</p>
+            <h2 id="consoleTitle">串口助手</h2>
+          </div>
+          <span class="console-badge">RX / TX</span>
+        </div>
+
+        <div class="serial-toolbar">
+          <div class="serial-mode-group" aria-label="接收格式">
+            <span>接收</span>
+            <div class="mode-switch">
+              <button class="active" id="rxAscii" type="button" data-mode="ascii" aria-pressed="true">ASCII</button>
+              <button id="rxHex" type="button" data-mode="hex" aria-pressed="false">HEX</button>
+            </div>
+          </div>
+          <div class="serial-mode-group" aria-label="发送格式">
+            <span>发送</span>
+            <div class="mode-switch">
+              <button class="active" id="txAscii" type="button" data-mode="ascii" aria-pressed="true">ASCII</button>
+              <button id="txHex" type="button" data-mode="hex" aria-pressed="false">HEX</button>
+            </div>
+          </div>
+          <div class="console-options">
+            <label class="toggle-label">
+              <input id="autoScroll" type="checkbox" checked />
+              <span></span>自动滚动
+            </label>
+            <label class="toggle-label">
+              <input id="showTimestamp" type="checkbox" checked />
+              <span></span>时间戳
+            </label>
+            <label class="toggle-label">
+              <input id="appendNewline" type="checkbox" checked />
+              <span></span>自动换行
+            </label>
+          </div>
+          <div class="console-tools">
+            <button id="exportLog" type="button">导出日志</button>
+            <button id="clearLog" type="button">清空</button>
+          </div>
+        </div>
+
+        <div class="quick-command-row" aria-label="快捷指令">
+          <span>快捷指令</span>
+          <button class="quick-command" type="button" data-command='{"type":"ping"}'>PING</button>
+          <button class="quick-command" type="button" data-command='{"type":"get_status"}'>读取状态</button>
+          <button class="quick-command" type="button" data-command='{"type":"imu_zero"}'>IMU 校零</button>
+          <button class="quick-command" type="button" data-command='{"type":"stream_start"}'>开始输出</button>
+          <button class="quick-command danger" type="button" data-command='{"type":"stream_stop"}'>停止输出</button>
+        </div>
+
+        <div class="console-output" id="consoleOutput" role="log" aria-live="polite">
+          <div class="log-line info"><time>--:--:--.---</time><b>SYS</b><span>FishLink 控制台已就绪</span></div>
+        </div>
+        <form class="console-input" id="consoleForm">
+          <span id="sendModeLabel">TX · ASCII</span>
+          <input
+            id="commandInput"
+            type="text"
+            autocomplete="off"
+            placeholder='输入文本或 JSON，例如 {"type":"ping"}'
+            aria-label="串口发送内容"
+          />
+          <button type="submit">发送 ↗</button>
+        </form>
+      </section>
+    </main>
+
+    <div class="toast-region" id="toastRegion" aria-live="assertive"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
