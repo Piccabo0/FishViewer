@@ -33,11 +33,29 @@
         <span class="status-dot" id="connectionDot"></span>
         <div>
           <strong id="connectionLabel">设备未连接</strong>
-          <small id="connectionHint">请选择波特率并连接设备</small>
+          <small id="connectionHint">请选择串口和波特率</small>
         </div>
       </div>
 
       <div class="connection-actions">
+        <div class="field compact-field port-field">
+          <span id="portLabel">串口</span>
+          <div class="baud-select port-select" id="portSelect">
+            <button
+              class="baud-trigger"
+              id="portTrigger"
+              type="button"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="portMenu"
+              aria-labelledby="portLabel portSelected"
+            >
+              <span id="portSelected">选择串口</span>
+              <i aria-hidden="true"></i>
+            </button>
+            <div class="baud-menu port-menu" id="portMenu" role="listbox" aria-label="串口号" hidden></div>
+          </div>
+        </div>
         <div class="field compact-field">
           <span id="baudLabel">波特率</span>
           <div class="baud-select" id="baudSelect">
@@ -58,6 +76,23 @@
               <button class="baud-option selected" type="button" role="option" data-value="115200" aria-selected="true">115,200</button>
             </div>
             <input id="baudRate" type="hidden" value="115200" />
+          </div>
+        </div>
+        <div class="field compact-field serial-config-field">
+          <span id="serialConfigLabel">串口参数</span>
+          <div class="serial-config-select" id="serialConfigSelect">
+            <button
+              class="baud-trigger"
+              id="serialConfigTrigger"
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              aria-controls="serialConfigDialog"
+              aria-labelledby="serialConfigLabel serialFrameSummary"
+            >
+              <span id="serialFrameSummary">8-N-1</span>
+              <span class="serial-config-edit" aria-hidden="true">•••</span>
+            </button>
           </div>
         </div>
         <button class="button primary" id="connectButton" type="button">
@@ -160,66 +195,179 @@
           <span class="console-badge">RX / TX</span>
         </div>
 
-        <div class="serial-toolbar">
-          <div class="serial-mode-group" aria-label="接收格式">
-            <span>接收</span>
-            <div class="mode-switch">
-              <button class="active" id="rxAscii" type="button" data-mode="ascii" aria-pressed="true">ASCII</button>
-              <button id="rxHex" type="button" data-mode="hex" aria-pressed="false">HEX</button>
-            </div>
-          </div>
-          <div class="serial-mode-group" aria-label="发送格式">
-            <span>发送</span>
-            <div class="mode-switch">
-              <button class="active" id="txAscii" type="button" data-mode="ascii" aria-pressed="true">ASCII</button>
-              <button id="txHex" type="button" data-mode="hex" aria-pressed="false">HEX</button>
-            </div>
-          </div>
-          <div class="console-options">
-            <label class="toggle-label">
-              <input id="autoScroll" type="checkbox" checked />
-              <span></span>自动滚动
-            </label>
-            <label class="toggle-label">
-              <input id="showTimestamp" type="checkbox" checked />
-              <span></span>时间戳
-            </label>
-            <label class="toggle-label">
-              <input id="appendNewline" type="checkbox" checked />
-              <span></span>自动换行
-            </label>
-          </div>
-          <div class="console-tools">
-            <button id="exportLog" type="button">导出日志</button>
-            <button id="clearLog" type="button">清空</button>
-          </div>
-        </div>
+        <div class="serial-assistant-layout">
+          <aside class="serial-control-pane" aria-label="串口收发配置">
+            <section class="serial-control-section" aria-labelledby="receiveConfigTitle">
+              <div class="serial-control-heading">
+                <strong id="receiveConfigTitle">接收配置</strong>
+              </div>
+              <div class="serial-config-row">
+                <span>显示格式</span>
+                <div class="mode-switch" aria-label="接收格式">
+                  <button class="active" id="rxAscii" type="button" data-mode="ascii" aria-pressed="true">ASCII</button>
+                  <button id="rxHex" type="button" data-mode="hex" aria-pressed="false">HEX</button>
+                </div>
+              </div>
+              <div class="serial-toggle-list">
+                <label class="toggle-label">
+                  <input id="logMode" type="checkbox" checked />
+                  <span></span>按日志模式显示
+                </label>
+                <label class="toggle-label">
+                  <input id="receiveWrap" type="checkbox" checked />
+                  <span></span>接收区自动换行
+                </label>
+                <label class="toggle-label">
+                  <input id="hideReceive" type="checkbox" />
+                  <span></span>接收数据不显示
+                </label>
+                <label class="toggle-label">
+                  <input id="autoScroll" type="checkbox" checked />
+                  <span></span>自动滚动
+                </label>
+                <label class="toggle-label">
+                  <input id="showTimestamp" type="checkbox" checked />
+                  <span></span>显示时间戳
+                </label>
+              </div>
+              <div class="serial-config-actions">
+                <button id="exportLog" type="button">保存接收</button>
+                <button id="clearLog" type="button">清除接收</button>
+              </div>
+            </section>
 
-        <div class="quick-command-row" aria-label="快捷指令">
-          <span>快捷指令</span>
-          <button class="quick-command" type="button" data-command='{"type":"ping"}'>PING</button>
-          <button class="quick-command" type="button" data-command='{"type":"get_status"}'>读取状态</button>
-          <button class="quick-command" type="button" data-command='{"type":"imu_zero"}'>IMU 校零</button>
-          <button class="quick-command" type="button" data-command='{"type":"stream_start"}'>开始输出</button>
-          <button class="quick-command danger" type="button" data-command='{"type":"stream_stop"}'>停止输出</button>
-        </div>
+            <section class="serial-control-section send-config-section" aria-labelledby="sendConfigTitle">
+              <div class="serial-control-heading">
+                <strong id="sendConfigTitle">发送配置</strong>
+              </div>
+              <div class="serial-config-row">
+                <span>发送格式</span>
+                <div class="mode-switch" aria-label="发送格式">
+                  <button class="active" id="txAscii" type="button" data-mode="ascii" aria-pressed="true">ASCII</button>
+                  <button id="txHex" type="button" data-mode="hex" aria-pressed="false">HEX</button>
+                  <button id="txFile" type="button" data-mode="file" aria-pressed="false">FILE</button>
+                </div>
+              </div>
+              <div class="serial-file-source" id="serialFileSource" hidden>
+                <input id="sendFileInput" type="file" hidden />
+                <button id="chooseSendFile" type="button">选择传输文件</button>
+                <small id="sendFileName">尚未选择文件</small>
+              </div>
+              <div class="serial-toggle-list">
+                <label class="toggle-label">
+                  <input id="parseEscapes" type="checkbox" />
+                  <span></span>自动解析转义符
+                </label>
+                <label class="toggle-label">
+                  <input id="appendNewline" type="checkbox" checked />
+                  <span></span>自动追加换行
+                </label>
+                <label class="toggle-label">
+                  <input id="autoChecksum" type="checkbox" />
+                  <span></span>自动发送校验位
+                </label>
+              </div>
+              <label class="serial-inline-setting disabled" id="checksumSetting">
+                <span>校验算法</span>
+                <select id="checksumType" disabled>
+                  <option value="crc16">CRC16 Modbus</option>
+                  <option value="sum8">SUM8</option>
+                </select>
+              </label>
+              <label class="serial-inline-setting">
+                <span class="toggle-label">
+                  <input id="loopSend" type="checkbox" />
+                  <span></span>循环发送
+                </span>
+                <span class="serial-period-input">
+                  <input id="loopInterval" type="number" value="1000" min="50" step="50" aria-label="循环发送周期" />
+                  <b>ms</b>
+                </span>
+              </label>
+            </section>
+          </aside>
 
-        <div class="console-output" id="consoleOutput" role="log" aria-live="polite">
-          <div class="log-line info"><time>--:--:--.---</time><b>SYS</b><span>FishLink 控制台已就绪</span></div>
+          <section class="serial-receive-pane" aria-labelledby="receivePaneTitle">
+            <div class="receive-pane-heading">
+              <div>
+                <strong id="receivePaneTitle">接收消息</strong>
+                <small>实时串口数据与通信记录</small>
+              </div>
+            </div>
+            <div class="console-output" id="consoleOutput" role="log" aria-live="polite">
+              <div class="log-line info"><time>--:--:--.---</time><b>SYS</b><span>FishLink 控制台已就绪</span></div>
+            </div>
+            <form class="console-input" id="consoleForm">
+              <span id="sendModeLabel">TX · ASCII</span>
+              <input
+                id="commandInput"
+                type="text"
+                autocomplete="off"
+                placeholder="输入发送内容"
+                aria-label="串口发送内容"
+              />
+              <button id="sendButton" type="submit">发送 ↗</button>
+            </form>
+          </section>
         </div>
-        <form class="console-input" id="consoleForm">
-          <span id="sendModeLabel">TX · ASCII</span>
-          <input
-            id="commandInput"
-            type="text"
-            autocomplete="off"
-            placeholder='输入文本或 JSON，例如 {"type":"ping"}'
-            aria-label="串口发送内容"
-          />
-          <button type="submit">发送 ↗</button>
-        </form>
       </section>
     </main>
+
+    <div class="serial-config-modal" id="serialConfigDialog" hidden>
+      <section class="serial-config-dialog" role="dialog" aria-modal="true" aria-labelledby="serialConfigDialogTitle" tabindex="-1">
+        <header class="serial-config-dialog-heading">
+          <div>
+            <p class="eyebrow">SERIAL PARAMETERS</p>
+            <h2 id="serialConfigDialogTitle">串口参数配置</h2>
+          </div>
+          <button id="serialConfigClose" type="button" aria-label="关闭串口参数配置">×</button>
+        </header>
+        <p class="serial-config-dialog-description">这些参数通常保持默认值即可，修改后将在下次连接设备时生效。</p>
+        <div class="serial-parameter-grid">
+          <label class="serial-setting-field">
+            <span>数据位</span>
+            <span class="serial-setting-select">
+              <select id="dataBits" aria-label="数据位">
+                <option value="8" selected>8 bit</option>
+                <option value="7">7 bit</option>
+              </select>
+            </span>
+          </label>
+          <label class="serial-setting-field">
+            <span>停止位</span>
+            <span class="serial-setting-select">
+              <select id="stopBits" aria-label="停止位">
+                <option value="1" selected>1 bit</option>
+                <option value="2">2 bit</option>
+              </select>
+            </span>
+          </label>
+          <label class="serial-setting-field">
+            <span>校验位</span>
+            <span class="serial-setting-select">
+              <select id="parity" aria-label="校验位">
+                <option value="none" selected>无校验</option>
+                <option value="odd">奇校验</option>
+                <option value="even">偶校验</option>
+              </select>
+            </span>
+          </label>
+          <label class="serial-setting-field">
+            <span>流控制</span>
+            <span class="serial-setting-select">
+              <select id="flowControl" aria-label="流控制">
+                <option value="none" selected>无</option>
+                <option value="hardware">硬件</option>
+              </select>
+            </span>
+          </label>
+        </div>
+        <footer class="serial-config-dialog-footer">
+          <p class="serial-settings-note">连接后配置将锁定</p>
+          <button id="serialConfigDone" type="button">完成</button>
+        </footer>
+      </section>
+    </div>
 
     <div class="toast-region" id="toastRegion" aria-live="assertive"></div>
     <script src="app.js"></script>

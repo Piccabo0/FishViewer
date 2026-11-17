@@ -1,7 +1,6 @@
 "use strict";
 
 const $ = (selector) => document.querySelector(selector);
-const $$ = (selector) => [...document.querySelectorAll(selector)];
 
 const elements = {
   connectButton: $("#connectButton"),
@@ -10,19 +9,49 @@ const elements = {
   baudTrigger: $("#baudTrigger"),
   baudMenu: $("#baudMenu"),
   baudSelected: $("#baudSelected"),
+  serialConfigTrigger: $("#serialConfigTrigger"),
+  serialConfigDialog: $("#serialConfigDialog"),
+  serialConfigDialogPanel: $(".serial-config-dialog"),
+  serialConfigClose: $("#serialConfigClose"),
+  serialConfigDone: $("#serialConfigDone"),
+  portSelect: $("#portSelect"),
+  portTrigger: $("#portTrigger"),
+  portMenu: $("#portMenu"),
+  portSelected: $("#portSelected"),
   connectionDot: $("#connectionDot"),
   connectionLabel: $("#connectionLabel"),
   connectionHint: $("#connectionHint"),
   consoleOutput: $("#consoleOutput"),
   commandInput: $("#commandInput"),
   autoScroll: $("#autoScroll"),
+  logMode: $("#logMode"),
+  receiveWrap: $("#receiveWrap"),
+  hideReceive: $("#hideReceive"),
   showTimestamp: $("#showTimestamp"),
   appendNewline: $("#appendNewline"),
+  parseEscapes: $("#parseEscapes"),
+  autoChecksum: $("#autoChecksum"),
+  checksumType: $("#checksumType"),
+  checksumSetting: $("#checksumSetting"),
+  loopSend: $("#loopSend"),
+  loopInterval: $("#loopInterval"),
+  txFile: $("#txFile"),
+  serialFileSource: $("#serialFileSource"),
+  sendFileInput: $("#sendFileInput"),
+  chooseSendFile: $("#chooseSendFile"),
+  sendFileName: $("#sendFileName"),
+  sendButton: $("#sendButton"),
   sendModeLabel: $("#sendModeLabel"),
   rxAscii: $("#rxAscii"),
   rxHex: $("#rxHex"),
   txAscii: $("#txAscii"),
   txHex: $("#txHex"),
+  dataBits: $("#dataBits"),
+  stopBits: $("#stopBits"),
+  parity: $("#parity"),
+  flowControl: $("#flowControl"),
+  serialFrameSummary: $("#serialFrameSummary"),
+  serialSettingsNote: $(".serial-settings-note"),
   attitudeChart: $("#attitudeChart"),
   gyroChart: $("#gyroChart"),
   angularAccelChart: $("#angularAccelChart"),
@@ -49,12 +78,16 @@ const appState = {
   packetCounter: 0,
   packetRate: 0,
   logs: [],
-  history: [],
+  selectedPort: null,
+  knownPorts: [],
 };
 
 const consoleState = {
   receiveMode: "ascii",
   sendMode: "ascii",
+  sendFile: null,
+  loopTimer: null,
+  loopActive: false,
 };
 
 const numberAliases = {
@@ -98,6 +131,7 @@ function writeLog(direction, message, level = "info") {
   const entry = { time: timestamp(), direction, message: String(message), level };
   appState.logs.push(entry);
   if (appState.logs.length > 500) appState.logs.shift();
+  if (direction === "RX" && elements.hideReceive.checked) return;
 
   const row = document.createElement("div");
   row.className = `log-line ${direction.toLowerCase()} ${level}`;
@@ -126,10 +160,11 @@ class SerialConnection {
     this.onBytes = onBytes;
   }
 
-  async connect(baudRate) {
+  async connect(options, selectedPort) {
     if (!("serial" in navigator)) throw new Error("当前浏览器不支持 Web Serial API");
-    this.port = await navigator.serial.requestPort();
-    await this.port.open({ baudRate, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none" });
+    if (!selectedPort) throw new Error("请先选择串口");
+    this.port = selectedPort;
+    await this.port.open(options);
     this.reading = true;
     this.readLoop();
   }
@@ -391,22 +426,70 @@ const charts = [
   ]),
 ];
 
+const serialSettingControls = [
+  elements.dataBits,
+  elements.stopBits,
+  elements.parity,
+  elements.flowControl,
+];
+
+function getSerialOptions() {
+  return {
+    baudRate: Number(elements.baudRate.value),
+    dataBits: Number(elements.dataBits.value),
+    stopBits: Number(elements.stopBits.value),
+    parity: elements.parity.value,
+    flowControl: elements.flowControl.value,
+  };
+}
+
+function updateSerialFrameSummary() {
+  const parityCode = { none: "N", odd: "O", even: "E" }[elements.parity.value];
+  const frame = `${elements.dataBits.value}-${parityCode}-${elements.stopBits.value}`;
+  elements.serialFrameSummary.textContent = elements.flowControl.value === "hardware" ? `${frame} · HW` : frame;
+}
+
+function setSerialSettingsDisabled(disabled) {
+  for (const control of serialSettingControls) control.disabled = disabled;
+  elements.serialConfigTrigger.disabled = disabled;
+  if (disabled) setSerialConfigDialogOpen(false);
+  elements.serialSettingsNote.textContent = disabled ? "连接中，配置已锁定" : "连接后配置将锁定";
+}
+
+for (const control of serialSettingControls) {
+  control.addEventListener("change", updateSerialFrameSummary);
+}
+updateSerialFrameSummary();
+
 async function connectSerial() {
   if (appState.source === "serial") {
     await disconnectCurrent("用户断开串口");
     return;
   }
 
-  setConnectionState("connecting", "正在连接…", "请在浏览器窗口中选择串口");
+  if (!appState.selectedPort) {
+    setConnectionState("", "设备未连接", "请先在串口列表中选择设备");
+    setPortMenuOpen(true, true);
+    elements.portTrigger.focus();
+    toast("请先选择串口", "warn");
+    return;
+  }
+
+  setConnectionState("connecting", "正在连接…", `正在打开 ${elements.portSelected.textContent}`);
   elements.connectButton.disabled = true;
   try {
-    const baud = Number(elements.baudRate.value);
-    await serial.connect(baud);
+    const serialOptions = getSerialOptions();
+    await serial.connect(serialOptions, appState.selectedPort);
     appState.source = "serial";
     appState.connectedAt = Date.now();
-    setConnectionState("online", "PCB 已连接", `${baud.toLocaleString()} baud · 8-N-1`);
+    elements.portTrigger.disabled = true;
+    elements.baudTrigger.disabled = true;
+    setSerialSettingsDisabled(true);
+    const frame = elements.serialFrameSummary.textContent;
+    const flow = serialOptions.flowControl === "hardware" ? "硬件流控" : "无流控";
+    setConnectionState("online", "PCB 已连接", `${elements.portSelected.textContent} · ${serialOptions.baudRate.toLocaleString()} baud · ${frame}`);
     elements.connectButton.innerHTML = '<span class="button-icon">×</span>断开设备';
-    writeLog("SYS", `串口连接成功，波特率 ${baud}`);
+    writeLog("SYS", `串口连接成功 · ${serialOptions.baudRate} baud · ${frame} · ${flow}`);
     toast("串口连接成功");
   } catch (error) {
     setConnectionState("error", "连接失败", error.message);
@@ -418,50 +501,110 @@ async function connectSerial() {
 }
 
 async function disconnectCurrent(reason = "连接已断开") {
+  stopLoopSend();
   if (appState.source === "serial") await serial.disconnect();
   appState.source = "idle";
   appState.connectedAt = null;
+  elements.portTrigger.disabled = false;
+  elements.baudTrigger.disabled = false;
+  setSerialSettingsDisabled(false);
   elements.connectButton.innerHTML = '<span class="button-icon">⚡</span>连接设备';
-  setConnectionState("", "设备未连接", "请选择波特率并连接设备");
+  setConnectionState("", "设备未连接", "请选择串口和波特率");
   writeLog("SYS", reason);
 }
 
 function handleUnexpectedDisconnect(reason) {
   if (appState.source !== "serial") return;
+  stopLoopSend();
   appState.source = "idle";
   appState.connectedAt = null;
+  elements.portTrigger.disabled = false;
+  elements.baudTrigger.disabled = false;
+  setSerialSettingsDisabled(false);
   elements.connectButton.innerHTML = '<span class="button-icon">⚡</span>连接设备';
   setConnectionState("error", "串口已断开", reason);
   toast("设备连接意外断开", "error");
 }
 
-async function sendRaw(text, display = true, appendNewline = true) {
-  const value = String(text);
-  if (!value) return;
-  if (display) writeLog("TX", value);
-  if (appState.source === "serial") {
-    await serial.send(value, { appendNewline });
-    return;
+function parseEscapeSequences(value) {
+  return String(value).replace(/\\(x[\da-fA-F]{2}|r|n|t|0|\\)/g, (match, code) => {
+    if (code[0].toLowerCase() === "x") return String.fromCharCode(Number.parseInt(code.slice(1), 16));
+    return { r: "\r", n: "\n", t: "\t", 0: "\0", "\\": "\\" }[code] ?? match;
+  });
+}
+
+function appendChecksum(bytes, type) {
+  if (type === "sum8") {
+    const sum = bytes.reduce((total, byte) => (total + byte) & 0xFF, 0);
+    return Uint8Array.from([...bytes, sum]);
   }
-  throw new Error("请先连接设备");
+
+  let crc = 0xFFFF;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc & 1) ? (crc >>> 1) ^ 0xA001 : crc >>> 1;
+    }
+  }
+  return Uint8Array.from([...bytes, crc & 0xFF, (crc >>> 8) & 0xFF]);
+}
+
+async function buildSendPayload(value) {
+  if (consoleState.sendMode === "file") {
+    if (!consoleState.sendFile) throw new Error("请先选择传输文件");
+    return {
+      bytes: new Uint8Array(await consoleState.sendFile.arrayBuffer()),
+      display: `FILE · ${consoleState.sendFile.name} · ${consoleState.sendFile.size} bytes`,
+    };
+  }
+
+  if (consoleState.sendMode === "hex") {
+    const bytes = parseHexInput(value);
+    return { bytes, display: formatHex(bytes) };
+  }
+
+  let text = elements.parseEscapes.checked ? parseEscapeSequences(value) : String(value);
+  if (!text) throw new Error("请输入要发送的内容");
+  if (elements.appendNewline.checked && !text.endsWith("\n")) text += "\r\n";
+  return { bytes: new TextEncoder().encode(text), display: text.replace(/\r/g, "\\r").replace(/\n/g, "\\n") };
 }
 
 async function sendConsoleValue(value) {
-  if (consoleState.sendMode === "hex") {
-    const bytes = parseHexInput(value);
-    if (appState.source !== "serial") throw new Error("请先连接设备");
-    writeLog("TX", formatHex(bytes));
-    await serial.send(bytes, { appendNewline: false });
+  if (appState.source !== "serial") throw new Error("请先连接设备");
+  const payload = await buildSendPayload(value);
+  const bytes = elements.autoChecksum.checked
+    ? appendChecksum(payload.bytes, elements.checksumType.value)
+    : payload.bytes;
+  writeLog("TX", elements.autoChecksum.checked ? formatHex(bytes) : payload.display);
+  await serial.send(bytes, { appendNewline: false });
+}
+
+function stopLoopSend(message = "") {
+  if (consoleState.loopTimer) window.clearTimeout(consoleState.loopTimer);
+  consoleState.loopTimer = null;
+  consoleState.loopActive = false;
+  elements.sendButton.textContent = "发送 ↗";
+  if (message) writeLog("SYS", message);
+}
+
+async function runLoopSend(value) {
+  if (!consoleState.loopActive) return;
+  try {
+    await sendConsoleValue(value);
+  } catch (error) {
+    stopLoopSend();
+    toast(error.message, "warn");
     return;
   }
-  await sendRaw(value, true, elements.appendNewline.checked);
+  const interval = Math.max(50, Number(elements.loopInterval.value) || 1000);
+  consoleState.loopTimer = window.setTimeout(() => runLoopSend(value), interval);
 }
 
 function setConsoleMode(direction, mode) {
   const isReceive = direction === "receive";
   const buttons = isReceive
     ? [elements.rxAscii, elements.rxHex]
-    : [elements.txAscii, elements.txHex];
+    : [elements.txAscii, elements.txHex, elements.txFile];
   for (const button of buttons) {
     const active = button.dataset.mode === mode;
     button.classList.toggle("active", active);
@@ -476,14 +619,114 @@ function setConsoleMode(direction, mode) {
 
   consoleState.sendMode = mode;
   elements.sendModeLabel.textContent = `TX · ${mode.toUpperCase()}`;
+  elements.serialFileSource.hidden = mode !== "file";
+  elements.commandInput.disabled = mode === "file";
   elements.commandInput.placeholder = mode === "hex"
     ? "输入 HEX 字节，例如 AA 55 01 0D 0A"
-    : '输入文本或 JSON，例如 {"type":"ping"}';
-  elements.appendNewline.disabled = mode === "hex";
-  elements.appendNewline.closest("label").classList.toggle("disabled", mode === "hex");
+    : mode === "file" ? "请在左侧选择传输文件" : '输入文本或 JSON，例如 {"type":"ping"}';
+  for (const control of [elements.appendNewline, elements.parseEscapes]) {
+    control.disabled = mode !== "ascii";
+    control.closest("label").classList.toggle("disabled", mode !== "ascii");
+  }
 }
 
-const baudOptions = $$(".baud-option");
+function portDisplayName(port, index) {
+  try {
+    const info = port.getInfo();
+    const vendor = info.usbVendorId?.toString(16).toUpperCase().padStart(4, "0");
+    const product = info.usbProductId?.toString(16).toUpperCase().padStart(4, "0");
+    const usbId = vendor && product ? ` · ${vendor}:${product}` : "";
+    return `串口 ${index + 1}${usbId}`;
+  } catch {
+    return `串口 ${index + 1}`;
+  }
+}
+
+function selectPort(port) {
+  if (!appState.knownPorts.includes(port)) appState.knownPorts.push(port);
+  appState.selectedPort = port;
+  const index = appState.knownPorts.indexOf(port);
+  elements.portSelected.textContent = portDisplayName(port, index);
+  renderPortMenu();
+}
+
+function renderPortMenu() {
+  elements.portMenu.innerHTML = "";
+
+  if (!appState.knownPorts.length) {
+    const empty = document.createElement("button");
+    empty.className = "baud-option port-option";
+    empty.type = "button";
+    empty.disabled = true;
+    empty.textContent = "未检测到已授权串口";
+    elements.portMenu.append(empty);
+  }
+
+  appState.knownPorts.forEach((port, index) => {
+    const option = document.createElement("button");
+    const selected = port === appState.selectedPort;
+    option.className = `baud-option port-option${selected ? " selected" : ""}`;
+    option.type = "button";
+    option.role = "option";
+    option.setAttribute("aria-selected", String(selected));
+    option.textContent = portDisplayName(port, index);
+    option.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectPort(port);
+      setPortMenuOpen(false);
+      elements.portTrigger.focus();
+    });
+    elements.portMenu.append(option);
+  });
+}
+
+async function authorizeFirstSerialPort() {
+  try {
+    const port = await navigator.serial.requestPort();
+    await refreshSerialPorts(port);
+    selectPort(port);
+    setPortMenuOpen(false);
+    elements.portTrigger.focus();
+  } catch (error) {
+    if (error.name !== "NotFoundError") toast(error.message, "error");
+  }
+}
+
+async function refreshSerialPorts(preferredPort = null) {
+  if (!("serial" in navigator)) return;
+  const ports = await navigator.serial.getPorts();
+  if (preferredPort && !ports.includes(preferredPort)) ports.push(preferredPort);
+  appState.knownPorts = ports;
+
+  if (preferredPort) appState.selectedPort = preferredPort;
+  if (appState.selectedPort && !ports.includes(appState.selectedPort)) appState.selectedPort = null;
+  if (!appState.selectedPort && ports.length === 1) appState.selectedPort = ports[0];
+
+  if (appState.selectedPort) {
+    elements.portSelected.textContent = portDisplayName(
+      appState.selectedPort,
+      ports.indexOf(appState.selectedPort)
+    );
+  } else {
+    elements.portSelected.textContent = "选择串口";
+  }
+  renderPortMenu();
+}
+
+function setPortMenuOpen(open, focusSelected = false) {
+  elements.portSelect.classList.toggle("open", open);
+  elements.portTrigger.setAttribute("aria-expanded", String(open));
+  elements.portMenu.hidden = !open;
+  if (open && focusSelected) {
+    requestAnimationFrame(() => {
+      const target = elements.portMenu.querySelector(".port-option.selected:not(:disabled)")
+        || elements.portMenu.querySelector(".port-option:not(:disabled)");
+      target?.focus();
+    });
+  }
+}
+
+const baudOptions = [...elements.baudMenu.querySelectorAll(".baud-option")];
 
 function setBaudMenuOpen(open, focusSelected = false) {
   elements.baudSelect.classList.toggle("open", open);
@@ -493,6 +736,18 @@ function setBaudMenuOpen(open, focusSelected = false) {
     requestAnimationFrame(() => {
       baudOptions.find((option) => option.classList.contains("selected"))?.focus();
     });
+  }
+}
+
+function setSerialConfigDialogOpen(open) {
+  const wasOpen = !elements.serialConfigDialog.hidden;
+  elements.serialConfigTrigger.setAttribute("aria-expanded", String(open));
+  elements.serialConfigDialog.hidden = !open;
+  document.body.classList.toggle("modal-open", open);
+  if (open) {
+    requestAnimationFrame(() => elements.dataBits.focus());
+  } else if (wasOpen && !elements.serialConfigTrigger.disabled) {
+    elements.serialConfigTrigger.focus();
   }
 }
 
@@ -508,15 +763,98 @@ function chooseBaud(option) {
   elements.baudTrigger.focus();
 }
 
+elements.portTrigger.addEventListener("click", async (event) => {
+  event.stopPropagation();
+  if (!appState.knownPorts.length) {
+    await authorizeFirstSerialPort();
+    return;
+  }
+  await refreshSerialPorts();
+  const open = !elements.portSelect.classList.contains("open");
+  setPortMenuOpen(open, open);
+  setBaudMenuOpen(false);
+  setSerialConfigDialogOpen(false);
+});
+
+elements.portTrigger.addEventListener("keydown", async (event) => {
+  if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
+  event.preventDefault();
+  if (!appState.knownPorts.length) {
+    await authorizeFirstSerialPort();
+    return;
+  }
+  await refreshSerialPorts();
+  setPortMenuOpen(true, true);
+  setBaudMenuOpen(false);
+  setSerialConfigDialogOpen(false);
+});
+
+elements.portMenu.addEventListener("keydown", (event) => {
+  const options = [...elements.portMenu.querySelectorAll(".port-option:not(:disabled)")];
+  const currentIndex = options.indexOf(document.activeElement);
+  if (event.key === "Escape") {
+    event.preventDefault();
+    setPortMenuOpen(false);
+    elements.portTrigger.focus();
+    return;
+  }
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  let nextIndex = currentIndex;
+  if (event.key === "Home") nextIndex = 0;
+  if (event.key === "End") nextIndex = options.length - 1;
+  if (event.key === "ArrowDown") nextIndex = (currentIndex + 1 + options.length) % options.length;
+  if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + options.length) % options.length;
+  options[nextIndex]?.focus();
+});
+
 elements.baudTrigger.addEventListener("click", (event) => {
   event.stopPropagation();
   setBaudMenuOpen(!elements.baudSelect.classList.contains("open"), true);
+  setPortMenuOpen(false);
+  setSerialConfigDialogOpen(false);
 });
 
 elements.baudTrigger.addEventListener("keydown", (event) => {
   if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
   event.preventDefault();
   setBaudMenuOpen(true, true);
+  setPortMenuOpen(false);
+  setSerialConfigDialogOpen(false);
+});
+
+elements.serialConfigTrigger.addEventListener("click", (event) => {
+  event.stopPropagation();
+  setPortMenuOpen(false);
+  setBaudMenuOpen(false);
+  setSerialConfigDialogOpen(true);
+});
+
+elements.serialConfigClose.addEventListener("click", () => setSerialConfigDialogOpen(false));
+elements.serialConfigDone.addEventListener("click", () => setSerialConfigDialogOpen(false));
+
+elements.serialConfigDialog.addEventListener("click", (event) => {
+  if (event.target === elements.serialConfigDialog) setSerialConfigDialogOpen(false);
+});
+
+elements.serialConfigDialog.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    setSerialConfigDialogOpen(false);
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const focusable = [...elements.serialConfigDialogPanel.querySelectorAll("button:not(:disabled), select:not(:disabled)")];
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 });
 
 for (const option of baudOptions) {
@@ -546,37 +884,61 @@ elements.baudMenu.addEventListener("keydown", (event) => {
 
 document.addEventListener("click", (event) => {
   if (!elements.baudSelect.contains(event.target)) setBaudMenuOpen(false);
+  if (!elements.portSelect.contains(event.target)) setPortMenuOpen(false);
 });
 
 elements.rxAscii.addEventListener("click", () => setConsoleMode("receive", "ascii"));
 elements.rxHex.addEventListener("click", () => setConsoleMode("receive", "hex"));
 elements.txAscii.addEventListener("click", () => setConsoleMode("send", "ascii"));
 elements.txHex.addEventListener("click", () => setConsoleMode("send", "hex"));
+elements.txFile.addEventListener("click", () => setConsoleMode("send", "file"));
+
+elements.logMode.addEventListener("change", () => {
+  elements.consoleOutput.classList.toggle("plain-receive", !elements.logMode.checked);
+});
+
+elements.receiveWrap.addEventListener("change", () => {
+  elements.consoleOutput.classList.toggle("no-wrap", !elements.receiveWrap.checked);
+});
 
 elements.showTimestamp.addEventListener("change", () => {
   elements.consoleOutput.classList.toggle("hide-timestamps", !elements.showTimestamp.checked);
 });
 
-for (const button of $$(".quick-command")) {
-  button.addEventListener("click", async () => {
-    const command = button.dataset.command;
-    try {
-      await sendRaw(command, true, elements.appendNewline.checked);
-    } catch (error) {
-      toast(error.message, "warn");
-    }
-  });
-}
+elements.autoChecksum.addEventListener("change", () => {
+  elements.checksumType.disabled = !elements.autoChecksum.checked;
+  elements.checksumSetting.classList.toggle("disabled", !elements.autoChecksum.checked);
+});
+
+elements.chooseSendFile.addEventListener("click", () => elements.sendFileInput.click());
+elements.sendFileInput.addEventListener("change", () => {
+  consoleState.sendFile = elements.sendFileInput.files?.[0] || null;
+  elements.sendFileName.textContent = consoleState.sendFile?.name || "尚未选择文件";
+});
 
 elements.connectButton.addEventListener("click", connectSerial);
 
 $("#consoleForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const value = elements.commandInput.value;
+  if (consoleState.loopActive) {
+    stopLoopSend("循环发送已停止");
+    return;
+  }
   try {
-    await sendConsoleValue(value);
-    elements.commandInput.value = "";
+    if (elements.loopSend.checked) {
+      const interval = Number(elements.loopInterval.value);
+      if (!Number.isFinite(interval) || interval < 50) throw new Error("循环周期不能小于 50 ms");
+      consoleState.loopActive = true;
+      elements.sendButton.textContent = "停止";
+      writeLog("SYS", `循环发送已启动 · ${interval} ms`);
+      await runLoopSend(value);
+    } else {
+      await sendConsoleValue(value);
+      if (consoleState.sendMode !== "file") elements.commandInput.value = "";
+    }
   } catch (error) {
+    stopLoopSend();
     toast(error.message, "warn");
   }
 });
@@ -588,21 +950,30 @@ $("#clearLog").addEventListener("click", () => {
 });
 
 $("#exportLog").addEventListener("click", () => {
-  if (!appState.logs.length) return toast("暂无日志可导出", "warn");
-  const content = appState.logs.map((item) => `${item.time}\t${item.direction}\t${item.message}`).join("\n");
+  const receiveLogs = appState.logs.filter((item) => item.direction === "RX");
+  if (!receiveLogs.length) return toast("暂无接收数据可保存", "warn");
+  const content = receiveLogs.map((item) => `${item.time}\t${item.message}`).join("\n");
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `fishlink-log-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
+  link.download = `fishlink-rx-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
   link.click();
   URL.revokeObjectURL(link.href);
-  toast("日志已导出");
+  toast("接收数据已保存");
 });
 
 if ("serial" in navigator) {
-  navigator.serial.addEventListener("disconnect", () => handleUnexpectedDisconnect("USB 设备已拔出"));
+  refreshSerialPorts().catch((error) => writeLog("ERR", error.message, "warn"));
+  navigator.serial.addEventListener("connect", () => refreshSerialPorts());
+  navigator.serial.addEventListener("disconnect", () => {
+    handleUnexpectedDisconnect("USB 设备已拔出");
+    refreshSerialPorts();
+  });
 } else {
   elements.connectButton.disabled = true;
+  elements.portTrigger.disabled = true;
+  elements.baudTrigger.disabled = true;
+  elements.serialConfigTrigger.disabled = true;
   elements.connectButton.title = "请使用支持 Web Serial 的桌面 Chrome 或 Edge";
   writeLog("SYS", "未检测到 Web Serial API，请使用桌面 Chrome 或 Edge", "warn");
 }
