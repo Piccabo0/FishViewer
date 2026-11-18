@@ -64,6 +64,145 @@ const consoleState = {
   loopActive: false,
 };
 
+const quickCommandState = { items: [], editingIndex: null, selectedIndex: null };
+const quickCommandStorageKey = "fishlink.quickCommands.v1";
+
+function validateQuickCommands(value) {
+  if (!Array.isArray(value) || value.length > 500) throw new Error("快捷指令 JSON 必须是最多 500 项的数组");
+  return value.map((item) => {
+    const format = item?.format ?? "hex";
+    if (!item || typeof item.name !== "string" || typeof item.data !== "string" ||
+        !item.name.trim() || item.name.trim().length > 40 || !item.data || item.data.length > 4096 ||
+        !["hex", "ascii"].includes(format)) {
+      throw new Error("每项必须包含名称、格式和数据");
+    }
+    return { name: item.name.trim(), format,
+      data: format === "hex" ? formatHex(parseHexInput(item.data)) : item.data };
+  });
+}
+
+function renderQuickCommands() {
+  const list = $("#quickCommandList");
+  list.replaceChildren();
+  $("#editQuickCommand").disabled = quickCommandState.selectedIndex === null;
+  if (!quickCommandState.items.length) {
+    const empty = document.createElement("p");
+    empty.className = "quick-command-empty";
+    empty.textContent = "暂无快捷指令，点击“新建”添加。";
+    list.append(empty);
+  }
+  quickCommandState.items.forEach((item, index) => {
+    const row = document.createElement("div");
+    row.className = "quick-command-row";
+    row.classList.toggle("selected", index === quickCommandState.selectedIndex);
+    row.addEventListener("click", () => selectQuickCommand(index));
+    const name = document.createElement("button");
+    name.type = "button";
+    name.className = "quick-command-name";
+    name.textContent = item.name;
+    name.title = "选择 " + item.name;
+    const data = document.createElement("span");
+    data.className = "quick-command-data";
+    data.textContent = `${item.format.toUpperCase()} · ${item.data}`;
+    data.title = data.textContent;
+    const send = document.createElement("button");
+    send.type = "button";
+    send.className = "quick-send";
+    send.textContent = "➜";
+    send.title = "发送 " + item.name;
+    send.setAttribute("aria-label", "发送 " + item.name);
+    send.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      try {
+        if (appState.source !== "serial") throw new Error("请先连接设备");
+        const bytes = item.format === "hex" ? parseHexInput(item.data) : new TextEncoder().encode(item.data);
+        await serial.send(bytes, { appendNewline: false });
+        writeLog("TX", item.format === "hex" ? formatHex(bytes) : item.data);
+      } catch (error) { toast(error.message, "warn"); }
+    });
+    row.append(name, data, send);
+    list.append(row);
+  });
+}
+
+function selectQuickCommand(index) {
+  quickCommandState.selectedIndex = index;
+  $("#editQuickCommand").disabled = false;
+  $("#quickCommandList").querySelectorAll(".quick-command-row").forEach((row, rowIndex) => {
+    row.classList.toggle("selected", rowIndex === index);
+  });
+}
+
+async function saveQuickCommands(items, selectedIndex = quickCommandState.selectedIndex) {
+  const payload = JSON.stringify(items);
+  const response = await fetch("/api/quick-commands", {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: payload,
+  });
+  if (!response.ok) throw new Error("快捷指令文件保存失败，请使用本地 web_server.py 启动页面");
+  localStorage.setItem(quickCommandStorageKey, payload);
+  quickCommandState.items = items;
+  quickCommandState.selectedIndex = selectedIndex;
+  renderQuickCommands();
+}
+
+async function loadQuickCommands() {
+  try {
+    const response = await fetch("/api/quick-commands");
+    if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) throw new Error();
+    quickCommandState.items = validateQuickCommands(await response.json());
+    localStorage.setItem(quickCommandStorageKey, JSON.stringify(quickCommandState.items));
+  } catch {
+    try { quickCommandState.items = validateQuickCommands(JSON.parse(localStorage.getItem(quickCommandStorageKey) || "[]")); }
+    catch { quickCommandState.items = []; }
+  }
+  renderQuickCommands();
+}
+
+function openQuickCommandDialog(index = null) {
+  quickCommandState.editingIndex = index;
+  const item = index === null ? null : quickCommandState.items[index];
+  $("#quickCommandDialogTitle").textContent = item ? "编辑快捷指令" : "新建快捷指令";
+  $("#quickCommandName").value = item?.name || "";
+  $("#quickCommandFormat").value = item?.format || "hex";
+  $("#quickCommandData").value = item?.data || "";
+  $("#quickCommandData").placeholder = item?.format === "ascii" ? "例如 START" : "FF FE 04 01 01 03";
+  $("#deleteQuickCommand").hidden = !item;
+  $("#quickCommandDialog").showModal();
+  $("#quickCommandName").focus();
+}
+
+$("#addQuickCommand").addEventListener("click", () => openQuickCommandDialog());
+$("#editQuickCommand").addEventListener("click", () => {
+  if (quickCommandState.selectedIndex !== null) openQuickCommandDialog(quickCommandState.selectedIndex);
+});
+$("#quickCommandFormat").addEventListener("change", (event) => {
+  $("#quickCommandData").placeholder = event.target.value === "ascii" ? "例如 START" : "FF FE 04 01 01 03";
+});
+$("#cancelQuickCommand").addEventListener("click", () => $("#quickCommandDialog").close());
+$("#quickCommandForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const format = $("#quickCommandFormat").value;
+    const data = $("#quickCommandData").value;
+    const item = { name: $("#quickCommandName").value.trim(), format,
+      data: format === "hex" ? formatHex(parseHexInput(data)) : data };
+    const items = [...quickCommandState.items];
+    if (quickCommandState.editingIndex === null) items.push(item);
+    else items[quickCommandState.editingIndex] = item;
+    const selectedIndex = quickCommandState.editingIndex ?? items.length - 1;
+    await saveQuickCommands(validateQuickCommands(items), selectedIndex);
+    $("#quickCommandDialog").close();
+  } catch (error) { toast(error.message, "warn"); }
+});
+$("#deleteQuickCommand").addEventListener("click", async () => {
+  try {
+    const items = quickCommandState.items.filter((_, index) => index !== quickCommandState.editingIndex);
+    await saveQuickCommands(items, null);
+    $("#quickCommandDialog").close();
+  } catch (error) { toast(error.message, "warn"); }
+});
+loadQuickCommands();
+
 function timestamp(date = new Date()) {
   return date.toLocaleTimeString("zh-CN", { hour12: false }) + `.${String(date.getMilliseconds()).padStart(3, "0")}`;
 }
@@ -200,6 +339,133 @@ function parseHexInput(input) {
   return Uint8Array.from(compact.match(/.{2}/g), (pair) => Number.parseInt(pair, 16));
 }
 
+const imuDefaultConfig = {
+  frameFormat: "FF FE 84 14\nSEQ_L SEQ_H\nAX_L AX_H AY_L AY_H AZ_L AZ_H\nGX_L GX_H GY_L GY_H GZ_L GZ_H\nROLL_L ROLL_H PITCH_L PITCH_H YAW_L YAW_H\nCRC_H CRC_L",
+  accelDivisor: 1000, gyroDivisor: 10, angleDivisor: 100,
+};
+const imuState = { config: imuDefaultConfig, header: [], fields: {}, frameLength: 0, bytes: [] };
+
+function compileImuConfig(config) {
+  const tokens = config.frameFormat.trim().split(/\s+/);
+  const header = [];
+  const fields = {};
+  let fieldStarted = false;
+  for (const [index, token] of tokens.entries()) {
+    if (/^[0-9a-f]{2}$/i.test(token) && !fieldStarted) header.push(Number.parseInt(token, 16));
+    else if (/^[A-Z][A-Z0-9]*_[LH]$/.test(token)) {
+      fieldStarted = true;
+      fields[token] = index;
+    } else throw new Error(`无效的帧格式标记：${token}`);
+  }
+  if (!header.length || tokens.length > 256 || tokens.length <= header.length) throw new Error("帧格式需要帧头和字段，最长 256 字节");
+  for (const name of ["AX", "AY", "AZ", "GX", "GY", "GZ", "ROLL", "PITCH", "YAW"]) {
+    if (fields[`${name}_L`] === undefined || fields[`${name}_H`] === undefined) throw new Error(`缺少 ${name} 的 L/H 字节`);
+  }
+  const divisors = [config.accelDivisor, config.gyroDivisor, config.angleDivisor].map(Number);
+  if (divisors.some((number) => !Number.isFinite(number) || number <= 0 || number > 1_000_000)) throw new Error("数据除数必须大于 0");
+  return { config: { frameFormat: config.frameFormat.trim(), accelDivisor: divisors[0], gyroDivisor: divisors[1], angleDivisor: divisors[2] },
+    header, fields, frameLength: tokens.length };
+}
+
+function applyImuConfig(config) {
+  Object.assign(imuState, compileImuConfig(config));
+  imuState.bytes = [];
+  $("#imuStatus").textContent = "等待 IMU 数据帧";
+  $("#imuStatus").classList.remove("connected");
+  $("#imuRoll").textContent = "--°";
+  $("#imuPitch").textContent = "--°";
+  $("#imuYaw").textContent = "--°";
+  for (const id of ["imuAx", "imuAy", "imuAz", "imuGx", "imuGy", "imuGz"]) $(`#${id}`).textContent = "--";
+}
+
+function markImuDisconnected() {
+  imuState.bytes = [];
+  $("#imuStatus").textContent = "IMU 未接入";
+  $("#imuStatus").classList.remove("connected");
+}
+
+function readImuSigned(frame, name) {
+  const value = frame[imuState.fields[`${name}_L`]] | (frame[imuState.fields[`${name}_H`]] << 8);
+  return value >= 0x8000 ? value - 0x10000 : value;
+}
+
+function handleImuFrame(frame) {
+  const { accelDivisor, gyroDivisor, angleDivisor } = imuState.config;
+  const ax = readImuSigned(frame, "AX") / accelDivisor;
+  const ay = readImuSigned(frame, "AY") / accelDivisor;
+  const az = readImuSigned(frame, "AZ") / accelDivisor;
+  const gx = readImuSigned(frame, "GX") / gyroDivisor;
+  const gy = readImuSigned(frame, "GY") / gyroDivisor;
+  const gz = readImuSigned(frame, "GZ") / gyroDivisor;
+  const roll = readImuSigned(frame, "ROLL") / angleDivisor;
+  const pitch = readImuSigned(frame, "PITCH") / angleDivisor;
+  const yaw = readImuSigned(frame, "YAW") / angleDivisor;
+  window.imuViewer?.setAttitude(roll, pitch, yaw);
+  $("#imuStatus").textContent = "IMU 数据已接入";
+  $("#imuStatus").classList.add("connected");
+  $("#imuRoll").textContent = `${roll.toFixed(2)}°`;
+  $("#imuPitch").textContent = `${pitch.toFixed(2)}°`;
+  $("#imuYaw").textContent = `${yaw.toFixed(2)}°`;
+  $("#imuAx").textContent = ax.toFixed(3);
+  $("#imuAy").textContent = ay.toFixed(3);
+  $("#imuAz").textContent = az.toFixed(3);
+  $("#imuGx").textContent = gx.toFixed(1);
+  $("#imuGy").textContent = gy.toFixed(1);
+  $("#imuGz").textContent = gz.toFixed(1);
+}
+
+function receiveImuBytes(chunk) {
+  for (const byte of chunk) imuState.bytes.push(byte);
+  const { header, frameLength } = imuState;
+  while (imuState.bytes.length >= header.length) {
+    const index = imuState.bytes.findIndex((_, position) =>
+      position + header.length <= imuState.bytes.length && header.every((byte, offset) => imuState.bytes[position + offset] === byte));
+    if (index < 0) {
+      imuState.bytes.splice(0, Math.max(0, imuState.bytes.length - header.length + 1));
+      break;
+    }
+    if (index) imuState.bytes.splice(0, index);
+    if (imuState.bytes.length < frameLength) break;
+    handleImuFrame(imuState.bytes.splice(0, frameLength));
+  }
+}
+
+async function loadImuConfig() {
+  try {
+    const response = await fetch("/api/imu-config");
+    if (!response.ok) throw new Error();
+    applyImuConfig(await response.json());
+  } catch { applyImuConfig(imuDefaultConfig); }
+}
+
+$("#imuConfigButton").addEventListener("click", () => {
+  const config = imuState.config;
+  $("#imuFrameFormat").value = config.frameFormat;
+  $("#imuAccelDivisor").value = config.accelDivisor;
+  $("#imuGyroDivisor").value = config.gyroDivisor;
+  $("#imuAngleDivisor").value = config.angleDivisor;
+  $("#imuConfigDialog").showModal();
+});
+$("#cancelImuConfig").addEventListener("click", () => $("#imuConfigDialog").close());
+$("#imuConfigForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const compiled = compileImuConfig({
+      frameFormat: $("#imuFrameFormat").value,
+      accelDivisor: $("#imuAccelDivisor").value,
+      gyroDivisor: $("#imuGyroDivisor").value,
+      angleDivisor: $("#imuAngleDivisor").value,
+    });
+    const response = await fetch("/api/imu-config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(compiled.config) });
+    if (!response.ok) throw new Error("IMU 配置保存失败，请使用本地 web_server.py 启动页面");
+    applyImuConfig(compiled.config);
+    $("#imuConfigDialog").close();
+    toast("IMU 帧格式已保存");
+  } catch (error) { toast(error.message, "warn"); }
+});
+applyImuConfig(imuDefaultConfig);
+loadImuConfig();
+
 function flushConsoleReceiveBuffer() {
   if (consoleReceiveFlushTimer) window.clearTimeout(consoleReceiveFlushTimer);
   consoleReceiveFlushTimer = null;
@@ -216,6 +482,7 @@ function discardConsoleReceiveBuffer() {
 }
 
 function handleSerialBytes(bytes) {
+  receiveImuBytes(bytes);
   if (consoleState.receiveMode === "hex") {
     flushConsoleReceiveBuffer();
     writeLog("RX", formatHex(bytes));
@@ -338,6 +605,7 @@ async function connectSerial() {
 }
 
 async function disconnectCurrent(reason = "连接已断开") {
+  markImuDisconnected();
   stopLoopSend();
   flushConsoleReceiveBuffer();
   if (appState.source === "serial") await serial.disconnect();
@@ -353,6 +621,7 @@ async function disconnectCurrent(reason = "连接已断开") {
 
 function handleUnexpectedDisconnect(reason) {
   if (appState.source !== "serial") return;
+  markImuDisconnected();
   stopLoopSend();
   flushConsoleReceiveBuffer();
   appState.source = "idle";

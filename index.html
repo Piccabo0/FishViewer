@@ -110,30 +110,32 @@
             <p class="eyebrow">3D ATTITUDE</p>
             <h1 id="overviewTitle">IMU 姿态</h1>
           </div>
+          <div class="imu-heading-actions">
+            <span id="imuStatus" class="imu-connection-status">等待 IMU 数据帧</span>
+            <button id="imuConfigButton" class="imu-config-button" type="button">帧格式配置</button>
+          </div>
         </div>
 
         <div class="imu-placeholder">
-          <div class="attitude-viewport" aria-label="静态三维坐标系与姿态正方体占位图">
-            <div class="attitude-world">
-              <div class="reference-grid" aria-hidden="true"></div>
-              <div class="axis axis-x" aria-hidden="true"><span>X</span></div>
-              <div class="axis axis-y" aria-hidden="true"><span>Y</span></div>
-              <div class="axis axis-z" aria-hidden="true"><span>Z</span></div>
-              <div class="pose-cube" id="poseCube" aria-hidden="true">
-                <i class="cube-face cube-front">F</i>
-                <i class="cube-face cube-back"></i>
-                <i class="cube-face cube-right">R</i>
-                <i class="cube-face cube-left"></i>
-                <i class="cube-face cube-top">TOP</i>
-                <i class="cube-face cube-bottom"></i>
-              </div>
-            </div>
+          <div class="attitude-viewport" aria-label="IMU 三维姿态视图">
+            <canvas id="imuCanvas" class="imu-canvas" aria-label="IMU 三维姿态视图"></canvas>
+            <span id="imuModelStatus" class="imu-model-status">正在加载 IMU.STL…</span>
           </div>
-          <div class="imu-placeholder-note">
-            <span class="placeholder-dot"></span>
-            <div>
-              <strong>IMU 数据尚未接入</strong>
-              <small>未来将根据 Roll、Pitch、Yaw 实时旋转正方体</small>
+          <div class="imu-readouts" aria-label="IMU 解析值">
+            <div class="imu-value"><span>ROLL</span><strong id="imuRoll">--°</strong></div>
+            <div class="imu-value"><span>PITCH</span><strong id="imuPitch">--°</strong></div>
+            <div class="imu-value"><span>YAW</span><strong id="imuYaw">--°</strong></div>
+            <div class="imu-vector-card">
+              <div class="imu-vector-heading"><span>加速度</span><small>g</small></div>
+              <div class="imu-axis-value"><span>X</span><strong id="imuAx">--</strong></div>
+              <div class="imu-axis-value"><span>Y</span><strong id="imuAy">--</strong></div>
+              <div class="imu-axis-value"><span>Z</span><strong id="imuAz">--</strong></div>
+            </div>
+            <div class="imu-vector-card">
+              <div class="imu-vector-heading"><span>角速度</span><small>°/s</small></div>
+              <div class="imu-axis-value"><span>X</span><strong id="imuGx">--</strong></div>
+              <div class="imu-axis-value"><span>Y</span><strong id="imuGy">--</strong></div>
+              <div class="imu-axis-value"><span>Z</span><strong id="imuGz">--</strong></div>
             </div>
           </div>
         </div>
@@ -246,10 +248,46 @@
               <button id="sendButton" type="submit">发送 ↗</button>
             </form>
           </section>
+          <section class="quick-commands-pane" aria-labelledby="quickCommandsTitle">
+            <div class="receive-pane-heading quick-heading">
+              <strong id="quickCommandsTitle">快捷指令</strong>
+              <div class="quick-heading-actions">
+                <button id="addQuickCommand" type="button">＋ 新建</button>
+                <button id="editQuickCommand" type="button" disabled>修改</button>
+              </div>
+            </div>
+            <div class="quick-table-head"><span>名称</span><span>数据</span><span>发送</span></div>
+            <div id="quickCommandList" class="quick-command-list"></div>
+          </section>
         </div>
       </section>
     </main>
 
+    <dialog id="imuConfigDialog" class="quick-command-dialog imu-config-dialog" aria-labelledby="imuConfigTitle">
+      <form id="imuConfigForm">
+        <h2 id="imuConfigTitle">IMU 数据帧配置</h2>
+        <label>帧格式（每个标记代表一个字节）<textarea id="imuFrameFormat" rows="9" required></textarea></label>
+        <div class="imu-scale-grid">
+          <label>加速度除数（g）<input id="imuAccelDivisor" type="number" step="any" required /></label>
+          <label>角速度除数（°/s）<input id="imuGyroDivisor" type="number" step="any" required /></label>
+          <label>姿态角除数（°）<input id="imuAngleDivisor" type="number" step="any" required /></label>
+        </div>
+        <p>加速度：ax / ay / az = 对应原始值 ÷ 加速度除数（g）<br />角速度：gx / gy / gz = 对应原始值 ÷ 角速度除数（°/s）<br />姿态角：roll / pitch / yaw = 对应原始值 ÷ 姿态角除数（°）</p>
+        <div class="quick-dialog-actions"><span></span><button id="cancelImuConfig" type="button">取消</button><button type="submit">保存</button></div>
+      </form>
+    </dialog>
+    <dialog id="quickCommandDialog" class="quick-command-dialog" aria-labelledby="quickCommandDialogTitle">
+      <form id="quickCommandForm">
+        <h2 id="quickCommandDialogTitle">新建快捷指令</h2>
+        <label>名称<input id="quickCommandName" maxlength="40" required placeholder="例如 IMU 输出" /></label>
+        <label>格式<select id="quickCommandFormat"><option value="hex">HEX</option><option value="ascii">ASCII</option></select></label>
+        <label>数据<textarea id="quickCommandData" required rows="3" placeholder="FF FE 04 01 01 03"></textarea></label>
+        <div class="quick-dialog-actions">
+          <button id="deleteQuickCommand" class="danger" type="button" hidden>删除</button>
+          <span></span><button id="cancelQuickCommand" type="button">取消</button><button type="submit">保存</button>
+        </div>
+      </form>
+    </dialog>
     <div class="serial-config-modal" id="serialConfigDialog" hidden>
       <section class="serial-config-dialog" role="dialog" aria-modal="true" aria-labelledby="serialConfigDialogTitle" tabindex="-1">
         <header class="serial-config-dialog-heading">
@@ -307,6 +345,9 @@
     </div>
 
     <div class="toast-region" id="toastRegion" aria-live="assertive"></div>
+    <script src="vendor/three.r128.min.js"></script>
+    <script src="vendor/STLLoader.r128.js"></script>
+    <script src="imu_viewer.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

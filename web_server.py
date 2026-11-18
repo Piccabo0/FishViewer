@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import json
 import os
 import socket
 import sys
@@ -18,6 +19,8 @@ from pathlib import Path
 
 
 PROJECT_DIR = Path(__file__).resolve().parent
+COMMANDS_FILE = PROJECT_DIR / "quick_commands.json"
+IMU_CONFIG_FILE = PROJECT_DIR / "imu_frame_config.json"
 
 
 class FishLinkRequestHandler(SimpleHTTPRequestHandler):
@@ -31,6 +34,86 @@ class FishLinkRequestHandler(SimpleHTTPRequestHandler):
         ".json": "application/json; charset=utf-8",
         ".svg": "image/svg+xml",
     }
+
+    def do_GET(self) -> None:
+        if self.path == "/api/imu-config":
+            try:
+                data = IMU_CONFIG_FILE.read_bytes()
+            except OSError:
+                self.send_error(500, "Cannot read IMU configuration")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if self.path == "/api/quick-commands":
+            try:
+                data = COMMANDS_FILE.read_bytes() if COMMANDS_FILE.exists() else b"[]"
+            except OSError:
+                self.send_error(500, "Cannot read quick commands")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        super().do_GET()
+
+    def do_PUT(self) -> None:
+        if self.path == "/api/imu-config":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 16_384:
+                    raise ValueError("Invalid size")
+                config = json.loads(self.rfile.read(length))
+                if (not isinstance(config, dict)
+                    or not isinstance(config.get("frameFormat"), str)
+                    or not 0 < len(config["frameFormat"]) <= 8192
+                    or any(not isinstance(config.get(key), (int, float)) or isinstance(config.get(key), bool)
+                           or not 0 < config[key] <= 1_000_000
+                           for key in ("accelDivisor", "gyroDivisor", "angleDivisor"))):
+                    raise ValueError("Invalid IMU configuration")
+                payload = (json.dumps(config, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+                temporary = IMU_CONFIG_FILE.with_suffix(".json.tmp")
+                temporary.write_bytes(payload)
+                temporary.replace(IMU_CONFIG_FILE)
+            except (ValueError, UnicodeDecodeError, OSError):
+                self.send_error(400, "Invalid IMU configuration")
+                return
+            self.send_response(204)
+            self.end_headers()
+            return
+        if self.path != "/api/quick-commands":
+            self.send_error(404)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 < length <= 256_000:
+                raise ValueError("Invalid size")
+            commands = json.loads(self.rfile.read(length))
+            if not isinstance(commands, list) or len(commands) > 500 or any(
+                not isinstance(item, dict)
+                or not isinstance(item.get("name"), str)
+                or not 0 < len(item["name"]) <= 40
+                or not isinstance(item.get("data"), str)
+                or not 0 < len(item["data"]) <= 4096
+                or item.get("format", "hex") not in {"hex", "ascii"}
+                or any(key not in {"name", "data", "format"} for key in item)
+                for item in commands
+            ):
+                raise ValueError("Invalid commands")
+            payload = (json.dumps(commands, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+            temporary = COMMANDS_FILE.with_suffix(".json.tmp")
+            temporary.write_bytes(payload)
+            temporary.replace(COMMANDS_FILE)
+        except (ValueError, UnicodeDecodeError, OSError):
+            self.send_error(400, "Invalid quick commands")
+            return
+        self.send_response(204)
+        self.end_headers()
 
     def end_headers(self) -> None:
         self.send_header("Cache-Control", "no-store")

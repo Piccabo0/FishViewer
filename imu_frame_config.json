@@ -1,0 +1,6 @@
+{
+  "frameFormat": "FF FE 84 14\nSEQ_L SEQ_H\nAX_L AX_H AY_L AY_H AZ_L AZ_H\nGX_L GX_H GY_L GY_H GZ_L GZ_H\nROLL_L ROLL_H PITCH_L PITCH_H YAW_L YAW_H\nCRC_H CRC_L",
+  "accelDivisor": 1000,
+  "gyroDivisor": 10,
+  "angleDivisor": 100
+}

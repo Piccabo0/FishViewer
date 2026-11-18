@@ -1,0 +1,42 @@
+[
+  {
+    "name": "LED亮",
+    "format": "hex",
+    "data": "FF FE 01 01 01 00"
+  },
+  {
+    "name": "LED灭",
+    "format": "hex",
+    "data": "FF FE 01 01 00 FF"
+  },
+  {
+    "name": "LED闪",
+    "format": "hex",
+    "data": "FF FE 01 01 02 01"
+  },
+  {
+    "name": "外设状态",
+    "format": "hex",
+    "data": "FF FE 05 00 02"
+  },
+  {
+    "name": "IMU输出",
+    "format": "hex",
+    "data": "FF FE 04 01 01 03"
+  },
+  {
+    "name": "IMU停止",
+    "format": "hex",
+    "data": "FF FE 04 01 00 02"
+  },
+  {
+    "name": "IMU校准",
+    "format": "hex",
+    "data": "FF FE 04 01 02 04"
+  },
+  {
+    "name": "IMU请求一帧",
+    "format": "hex",
+    "data": "FF FE 04 01 03 05"
+  }
+]
