@@ -27,7 +27,6 @@ const elements = {
   logMode: $("#logMode"),
   receiveWrap: $("#receiveWrap"),
   hideReceive: $("#hideReceive"),
-  showTimestamp: $("#showTimestamp"),
   appendNewline: $("#appendNewline"),
   parseEscapes: $("#parseEscapes"),
   autoChecksum: $("#autoChecksum"),
@@ -35,11 +34,6 @@ const elements = {
   checksumSetting: $("#checksumSetting"),
   loopSend: $("#loopSend"),
   loopInterval: $("#loopInterval"),
-  txFile: $("#txFile"),
-  serialFileSource: $("#serialFileSource"),
-  sendFileInput: $("#sendFileInput"),
-  chooseSendFile: $("#chooseSendFile"),
-  sendFileName: $("#sendFileName"),
   sendButton: $("#sendButton"),
   sendModeLabel: $("#sendModeLabel"),
   rxAscii: $("#rxAscii"),
@@ -52,31 +46,12 @@ const elements = {
   flowControl: $("#flowControl"),
   serialFrameSummary: $("#serialFrameSummary"),
   serialSettingsNote: $(".serial-settings-note"),
-  attitudeChart: $("#attitudeChart"),
-  gyroChart: $("#gyroChart"),
-  angularAccelChart: $("#angularAccelChart"),
-  chartEmpty: $("#chartEmpty"),
   toastRegion: $("#toastRegion"),
-};
-
-const telemetry = {
-  yaw: null,
-  pitch: null,
-  roll: null,
-  gyroX: null,
-  gyroY: null,
-  gyroZ: null,
-  angularAccelX: null,
-  angularAccelY: null,
-  angularAccelZ: null,
 };
 
 const appState = {
   source: "idle",
   connectedAt: null,
-  lastPacketAt: 0,
-  packetCounter: 0,
-  packetRate: 0,
   logs: [],
   selectedPort: null,
   knownPorts: [],
@@ -85,29 +60,9 @@ const appState = {
 const consoleState = {
   receiveMode: "ascii",
   sendMode: "ascii",
-  sendFile: null,
   loopTimer: null,
   loopActive: false,
 };
-
-const numberAliases = {
-  yaw: ["yaw", "heading", "yawDeg"],
-  pitch: ["pitch", "pitchDeg"],
-  roll: ["roll", "rollDeg"],
-  gyroX: ["gyroX", "gx", "omegaX", "angularVelocityX"],
-  gyroY: ["gyroY", "gy", "omegaY", "angularVelocityY"],
-  gyroZ: ["gyroZ", "gz", "omegaZ", "angularVelocityZ"],
-  angularAccelX: ["angularAccelX", "alphaX", "angularAccelerationX"],
-  angularAccelY: ["angularAccelY", "alphaY", "angularAccelerationY"],
-  angularAccelZ: ["angularAccelZ", "alphaZ", "angularAccelerationZ"],
-};
-
-function firstValue(object, aliases) {
-  for (const key of aliases) {
-    if (object[key] !== undefined && object[key] !== null) return object[key];
-  }
-  return undefined;
-}
 
 function timestamp(date = new Date()) {
   return date.toLocaleTimeString("zh-CN", { hour12: false }) + `.${String(date.getMilliseconds()).padStart(3, "0")}`;
@@ -228,6 +183,8 @@ class SerialConnection {
 
 const serial = new SerialConnection(handleSerialLine, handleSerialBytes);
 const consoleTextDecoder = new TextDecoder();
+let consoleReceiveBuffer = "";
+let consoleReceiveFlushTimer = null;
 
 function formatHex(bytes) {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0").toUpperCase()).join(" ");
@@ -243,13 +200,43 @@ function parseHexInput(input) {
   return Uint8Array.from(compact.match(/.{2}/g), (pair) => Number.parseInt(pair, 16));
 }
 
+function flushConsoleReceiveBuffer() {
+  if (consoleReceiveFlushTimer) window.clearTimeout(consoleReceiveFlushTimer);
+  consoleReceiveFlushTimer = null;
+  if (!consoleReceiveBuffer) return;
+  const text = consoleReceiveBuffer;
+  consoleReceiveBuffer = "";
+  writeLog("RX", text);
+}
+
+function discardConsoleReceiveBuffer() {
+  if (consoleReceiveFlushTimer) window.clearTimeout(consoleReceiveFlushTimer);
+  consoleReceiveFlushTimer = null;
+  consoleReceiveBuffer = "";
+}
+
 function handleSerialBytes(bytes) {
   if (consoleState.receiveMode === "hex") {
+    flushConsoleReceiveBuffer();
     writeLog("RX", formatHex(bytes));
     return;
   }
   const text = consoleTextDecoder.decode(bytes, { stream: true });
-  if (text) writeLog("RX", text);
+  if (!text) return;
+
+  consoleReceiveBuffer += text;
+  const lines = consoleReceiveBuffer.split(/\r\n|\r|\n/);
+  consoleReceiveBuffer = lines.pop() ?? "";
+  for (const line of lines) {
+    if (line) writeLog("RX", line);
+  }
+
+  if (consoleReceiveFlushTimer) window.clearTimeout(consoleReceiveFlushTimer);
+  if (consoleReceiveBuffer.length >= 512) {
+    flushConsoleReceiveBuffer();
+  } else if (consoleReceiveBuffer) {
+    consoleReceiveFlushTimer = window.setTimeout(flushConsoleReceiveBuffer, 80);
+  }
 }
 
 function parseLooseData(line) {
@@ -271,160 +258,10 @@ function parseLooseData(line) {
 
 function handleSerialLine(line) {
   const data = parseLooseData(line);
-  if (!data) return;
-  const imuData = data.imu && typeof data.imu === "object" ? data.imu : {};
-  const hasImuField = Object.values(numberAliases).some((aliases) =>
-    aliases.some((key) => data[key] !== undefined || imuData[key] !== undefined)
-  );
-  if (hasImuField) {
-    handleTelemetry(data);
-  } else if (data.type === "error") {
+  if (data?.type === "error") {
     toast(data.message || "设备报告错误", "error");
   }
 }
-
-function normalizeTelemetry(data) {
-  const next = { ...telemetry };
-  const source = data.imu && typeof data.imu === "object" ? { ...data, ...data.imu } : data;
-  for (const [target, aliases] of Object.entries(numberAliases)) {
-    const value = Number(firstValue(source, aliases));
-    if (Number.isFinite(value)) next[target] = value;
-  }
-  return next;
-}
-
-function handleTelemetry(data) {
-  Object.assign(telemetry, normalizeTelemetry(data));
-  appState.lastPacketAt = Date.now();
-  appState.packetCounter += 1;
-
-  appState.history.push({ time: Date.now(), ...telemetry });
-  if (appState.history.length > 200) appState.history.shift();
-
-  updateTelemetryStatus();
-  charts.forEach((chart) => chart.draw());
-}
-
-function setText(selector, value) {
-  const element = $(selector);
-  if (element) element.textContent = value;
-}
-
-function updateTelemetryStatus() {
-  setText("#packetRate", appState.packetRate);
-  elements.chartEmpty.classList.add("hidden");
-}
-
-class TelemetryChart {
-  constructor(canvas, series) {
-    this.canvas = canvas;
-    this.series = series;
-    this.context = canvas.getContext("2d");
-    this.resizeObserver = new ResizeObserver(() => this.draw());
-    this.resizeObserver.observe(canvas.parentElement);
-  }
-
-  draw() {
-    const rect = this.canvas.getBoundingClientRect();
-    const scale = window.devicePixelRatio || 1;
-    if (!rect.width || !rect.height) return;
-    this.canvas.width = Math.round(rect.width * scale);
-    this.canvas.height = Math.round(rect.height * scale);
-    const ctx = this.context;
-    ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    ctx.clearRect(0, 0, rect.width, rect.height);
-
-    const padding = { top: 10, right: 8, bottom: 19, left: 38 };
-    const width = rect.width - padding.left - padding.right;
-    const height = rect.height - padding.top - padding.bottom;
-    ctx.strokeStyle = "rgba(44,113,116,.1)";
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 4; i += 1) {
-      const y = padding.top + height * i / 4;
-      ctx.beginPath();
-      ctx.moveTo(padding.left, y);
-      ctx.lineTo(padding.left + width, y);
-      ctx.stroke();
-    }
-
-    if (appState.history.length < 2) return;
-    const visible = appState.history.slice(-200);
-    const values = visible.flatMap((point) =>
-      this.series.map((item) => point[item.key]).filter(Number.isFinite)
-    );
-    if (!values.length) return;
-
-    let min = Math.min(0, ...values);
-    let max = Math.max(0, ...values);
-    const span = max - min || Math.max(Math.abs(max) * 0.1, 1);
-    min -= span * 0.12;
-    max += span * 0.12;
-
-    if (min < 0 && max > 0) {
-      const zeroY = padding.top + (1 - (0 - min) / (max - min)) * height;
-      ctx.strokeStyle = "rgba(44,113,116,.18)";
-      ctx.beginPath();
-      ctx.moveTo(padding.left, zeroY);
-      ctx.lineTo(padding.left + width, zeroY);
-      ctx.stroke();
-    }
-
-    for (const item of this.series) {
-      ctx.beginPath();
-      ctx.strokeStyle = item.color;
-      ctx.lineWidth = 1.4;
-      ctx.shadowColor = item.color;
-      ctx.shadowBlur = 4;
-      let drawing = false;
-      visible.forEach((point, index) => {
-        const value = point[item.key];
-        if (!Number.isFinite(value)) {
-          drawing = false;
-          return;
-        }
-        const x = padding.left + index / Math.max(visible.length - 1, 1) * width;
-        const y = padding.top + (1 - (value - min) / (max - min)) * height;
-        if (!drawing) {
-          ctx.moveTo(x, y);
-          drawing = true;
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-    }
-
-    ctx.fillStyle = "rgba(84,117,122,.68)";
-    ctx.font = "8px ui-monospace, monospace";
-    ctx.textAlign = "right";
-    ctx.fillText(max.toFixed(1), padding.left - 5, padding.top + 3);
-    ctx.fillText(min.toFixed(1), padding.left - 5, padding.top + height);
-    ctx.textAlign = "left";
-    ctx.fillText("-30s", padding.left, rect.height - 5);
-    ctx.textAlign = "right";
-    ctx.fillText("现在", rect.width - padding.right, rect.height - 5);
-  }
-}
-
-const axisColors = ["#e96868", "#26a976", "#4c88d2"];
-const charts = [
-  new TelemetryChart(elements.attitudeChart, [
-    { key: "roll", color: axisColors[0] },
-    { key: "pitch", color: axisColors[1] },
-    { key: "yaw", color: axisColors[2] },
-  ]),
-  new TelemetryChart(elements.gyroChart, [
-    { key: "gyroX", color: axisColors[0] },
-    { key: "gyroY", color: axisColors[1] },
-    { key: "gyroZ", color: axisColors[2] },
-  ]),
-  new TelemetryChart(elements.angularAccelChart, [
-    { key: "angularAccelX", color: axisColors[0] },
-    { key: "angularAccelY", color: axisColors[1] },
-    { key: "angularAccelZ", color: axisColors[2] },
-  ]),
-];
 
 const serialSettingControls = [
   elements.dataBits,
@@ -502,6 +339,7 @@ async function connectSerial() {
 
 async function disconnectCurrent(reason = "连接已断开") {
   stopLoopSend();
+  flushConsoleReceiveBuffer();
   if (appState.source === "serial") await serial.disconnect();
   appState.source = "idle";
   appState.connectedAt = null;
@@ -516,6 +354,7 @@ async function disconnectCurrent(reason = "连接已断开") {
 function handleUnexpectedDisconnect(reason) {
   if (appState.source !== "serial") return;
   stopLoopSend();
+  flushConsoleReceiveBuffer();
   appState.source = "idle";
   appState.connectedAt = null;
   elements.portTrigger.disabled = false;
@@ -550,14 +389,6 @@ function appendChecksum(bytes, type) {
 }
 
 async function buildSendPayload(value) {
-  if (consoleState.sendMode === "file") {
-    if (!consoleState.sendFile) throw new Error("请先选择传输文件");
-    return {
-      bytes: new Uint8Array(await consoleState.sendFile.arrayBuffer()),
-      display: `FILE · ${consoleState.sendFile.name} · ${consoleState.sendFile.size} bytes`,
-    };
-  }
-
   if (consoleState.sendMode === "hex") {
     const bytes = parseHexInput(value);
     return { bytes, display: formatHex(bytes) };
@@ -604,7 +435,7 @@ function setConsoleMode(direction, mode) {
   const isReceive = direction === "receive";
   const buttons = isReceive
     ? [elements.rxAscii, elements.rxHex]
-    : [elements.txAscii, elements.txHex, elements.txFile];
+    : [elements.txAscii, elements.txHex];
   for (const button of buttons) {
     const active = button.dataset.mode === mode;
     button.classList.toggle("active", active);
@@ -612,6 +443,7 @@ function setConsoleMode(direction, mode) {
   }
 
   if (isReceive) {
+    flushConsoleReceiveBuffer();
     consoleState.receiveMode = mode;
     writeLog("SYS", `接收显示已切换为 ${mode.toUpperCase()}`);
     return;
@@ -619,11 +451,10 @@ function setConsoleMode(direction, mode) {
 
   consoleState.sendMode = mode;
   elements.sendModeLabel.textContent = `TX · ${mode.toUpperCase()}`;
-  elements.serialFileSource.hidden = mode !== "file";
-  elements.commandInput.disabled = mode === "file";
+  elements.commandInput.disabled = false;
   elements.commandInput.placeholder = mode === "hex"
     ? "输入 HEX 字节，例如 AA 55 01 0D 0A"
-    : mode === "file" ? "请在左侧选择传输文件" : '输入文本或 JSON，例如 {"type":"ping"}';
+    : '输入文本或 JSON，例如 {"type":"ping"}';
   for (const control of [elements.appendNewline, elements.parseEscapes]) {
     control.disabled = mode !== "ascii";
     control.closest("label").classList.toggle("disabled", mode !== "ascii");
@@ -891,7 +722,6 @@ elements.rxAscii.addEventListener("click", () => setConsoleMode("receive", "asci
 elements.rxHex.addEventListener("click", () => setConsoleMode("receive", "hex"));
 elements.txAscii.addEventListener("click", () => setConsoleMode("send", "ascii"));
 elements.txHex.addEventListener("click", () => setConsoleMode("send", "hex"));
-elements.txFile.addEventListener("click", () => setConsoleMode("send", "file"));
 
 elements.logMode.addEventListener("change", () => {
   elements.consoleOutput.classList.toggle("plain-receive", !elements.logMode.checked);
@@ -901,19 +731,9 @@ elements.receiveWrap.addEventListener("change", () => {
   elements.consoleOutput.classList.toggle("no-wrap", !elements.receiveWrap.checked);
 });
 
-elements.showTimestamp.addEventListener("change", () => {
-  elements.consoleOutput.classList.toggle("hide-timestamps", !elements.showTimestamp.checked);
-});
-
 elements.autoChecksum.addEventListener("change", () => {
   elements.checksumType.disabled = !elements.autoChecksum.checked;
   elements.checksumSetting.classList.toggle("disabled", !elements.autoChecksum.checked);
-});
-
-elements.chooseSendFile.addEventListener("click", () => elements.sendFileInput.click());
-elements.sendFileInput.addEventListener("change", () => {
-  consoleState.sendFile = elements.sendFileInput.files?.[0] || null;
-  elements.sendFileName.textContent = consoleState.sendFile?.name || "尚未选择文件";
 });
 
 elements.connectButton.addEventListener("click", connectSerial);
@@ -935,7 +755,7 @@ $("#consoleForm").addEventListener("submit", async (event) => {
       await runLoopSend(value);
     } else {
       await sendConsoleValue(value);
-      if (consoleState.sendMode !== "file") elements.commandInput.value = "";
+      elements.commandInput.value = "";
     }
   } catch (error) {
     stopLoopSend();
@@ -944,6 +764,7 @@ $("#consoleForm").addEventListener("submit", async (event) => {
 });
 
 $("#clearLog").addEventListener("click", () => {
+  discardConsoleReceiveBuffer();
   elements.consoleOutput.innerHTML = "";
   appState.logs.length = 0;
   writeLog("SYS", "终端记录已清空");
@@ -978,19 +799,6 @@ if ("serial" in navigator) {
   writeLog("SYS", "未检测到 Web Serial API，请使用桌面 Chrome 或 Edge", "warn");
 }
 
-let previousPacketCount = 0;
-window.setInterval(() => {
-  appState.packetRate = appState.packetCounter - previousPacketCount;
-  previousPacketCount = appState.packetCounter;
-  setText("#packetRate", appState.packetRate);
-
-  if (appState.source !== "idle" && appState.lastPacketAt && Date.now() - appState.lastPacketAt > 3000) {
-    setConnectionState("error", "数据已超时", "串口仍连接，但超过 3 秒未收到遥测");
-  }
-}, 1000);
-
 window.addEventListener("beforeunload", () => {
   if (serial.reader) serial.reader.cancel().catch(() => {});
 });
-
-charts.forEach((chart) => chart.draw());

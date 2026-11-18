@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#f2faf9" />
     <meta
       name="description"
-      content="机器鱼 PCB 网页串口调试与外设状态监控工具"
+      content="机器鱼调试工具"
     />
-    <title>FishLink · 机器鱼控制台</title>
+    <title>FishLink</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -110,7 +110,6 @@
             <p class="eyebrow">3D ATTITUDE</p>
             <h1 id="overviewTitle">IMU 姿态</h1>
           </div>
-          <span class="mode-chip">接口待接入</span>
         </div>
 
         <div class="imu-placeholder">
@@ -140,59 +139,12 @@
         </div>
       </section>
 
-      <section class="panel chart-panel" aria-labelledby="chartTitle">
-        <div class="panel-heading chart-heading">
-          <div>
-            <p class="eyebrow">IMU STREAM</p>
-            <h2 id="chartTitle">IMU 实时遥测</h2>
-          </div>
-          <div class="chart-window">
-            <span class="live-pulse"></span>
-            <b id="packetRate">0</b> Hz · 近 30 秒
-          </div>
-        </div>
-        <div class="chart-legend" aria-label="曲线图例">
-          <span><i style="--series:#e96868"></i>X 轴</span>
-          <span><i style="--series:#26a976"></i>Y 轴</span>
-          <span><i style="--series:#4c88d2"></i>Z 轴</span>
-        </div>
-        <div class="imu-chart-stack">
-          <article class="imu-chart-card">
-            <header>
-              <div><strong>姿态角</strong><small>Roll / Pitch / Yaw</small></div>
-              <em>°</em>
-            </header>
-            <div class="imu-canvas-wrap"><canvas id="attitudeChart" aria-label="IMU 三轴姿态角曲线"></canvas></div>
-          </article>
-          <article class="imu-chart-card">
-            <header>
-              <div><strong>角速度</strong><small>Gyro X / Y / Z</small></div>
-              <em>°/s</em>
-            </header>
-            <div class="imu-canvas-wrap"><canvas id="gyroChart" aria-label="IMU 三轴角速度曲线"></canvas></div>
-          </article>
-          <article class="imu-chart-card">
-            <header>
-              <div><strong>角加速度</strong><small>Angular Accel X / Y / Z</small></div>
-              <em>°/s²</em>
-            </header>
-            <div class="imu-canvas-wrap"><canvas id="angularAccelChart" aria-label="IMU 三轴角加速度曲线"></canvas></div>
-          </article>
-          <div class="chart-empty" id="chartEmpty">
-            <span>⌁</span>
-            <strong>等待 IMU 遥测数据</strong>
-            <small>连接 PCB 后将显示三轴曲线</small>
-          </div>
-        </div>
-      </section>
-
       <section class="panel console-panel" aria-labelledby="consoleTitle">
         <div class="panel-heading console-heading">
           <div>
             <p class="eyebrow">SERIAL ASSISTANT</p>
             <h2 id="consoleTitle">串口助手</h2>
           </div>
-          <span class="console-badge">RX / TX</span>
         </div>
 
         <div class="serial-assistant-layout">
@@ -202,7 +154,6 @@
                 <strong id="receiveConfigTitle">接收配置</strong>
               </div>
               <div class="serial-config-row">
-                <span>显示格式</span>
                 <div class="mode-switch" aria-label="接收格式">
                   <button class="active" id="rxAscii" type="button" data-mode="ascii" aria-pressed="true">ASCII</button>
                   <button id="rxHex" type="button" data-mode="hex" aria-pressed="false">HEX</button>
@@ -225,10 +176,6 @@
                   <input id="autoScroll" type="checkbox" checked />
                   <span></span>自动滚动
                 </label>
-                <label class="toggle-label">
-                  <input id="showTimestamp" type="checkbox" checked />
-                  <span></span>显示时间戳
-                </label>
               </div>
               <div class="serial-config-actions">
                 <button id="exportLog" type="button">保存接收</button>
@@ -241,17 +188,10 @@
                 <strong id="sendConfigTitle">发送配置</strong>
               </div>
               <div class="serial-config-row">
-                <span>发送格式</span>
                 <div class="mode-switch" aria-label="发送格式">
                   <button class="active" id="txAscii" type="button" data-mode="ascii" aria-pressed="true">ASCII</button>
                   <button id="txHex" type="button" data-mode="hex" aria-pressed="false">HEX</button>
-                  <button id="txFile" type="button" data-mode="file" aria-pressed="false">FILE</button>
                 </div>
-              </div>
-              <div class="serial-file-source" id="serialFileSource" hidden>
-                <input id="sendFileInput" type="file" hidden />
-                <button id="chooseSendFile" type="button">选择传输文件</button>
-                <small id="sendFileName">尚未选择文件</small>
               </div>
               <div class="serial-toggle-list">
                 <label class="toggle-label">
@@ -289,10 +229,7 @@
 
           <section class="serial-receive-pane" aria-labelledby="receivePaneTitle">
             <div class="receive-pane-heading">
-              <div>
-                <strong id="receivePaneTitle">接收消息</strong>
-                <small>实时串口数据与通信记录</small>
-              </div>
+              <strong id="receivePaneTitle">数据日志</strong>
             </div>
             <div class="console-output" id="consoleOutput" role="log" aria-live="polite">
               <div class="log-line info"><time>--:--:--.---</time><b>SYS</b><span>FishLink 控制台已就绪</span></div>
