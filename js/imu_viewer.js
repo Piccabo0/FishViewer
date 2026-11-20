@@ -70,7 +70,7 @@
   addAxis([0, 1, 0], 0x4be2aa, "Y", 1.28);
   addAxis([0, 0, 1], 0x75aaff, "Z", 0.7);
 
-  new THREE.STLLoader().load("Models/IMU.STL", (geometry) => {
+  new THREE.STLLoader().load("models/IMU.STL", (geometry) => {
     geometry.computeBoundingBox();
     const bounds = geometry.boundingBox;
     const size = bounds.getSize(new THREE.Vector3());
@@ -81,7 +81,7 @@
     }
     const center = bounds.getCenter(new THREE.Vector3());
     geometry.translate(-center.x, -center.y, -center.z);
-    geometry.scale(1.55 / largest, 1.55 / largest, 1.55 / largest);
+    geometry.scale(1.15 / largest, 1.15 / largest, 1.15 / largest);
     geometry.computeVertexNormals();
     body.add(new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
       color: 0xb5bcc4, specular: 0x68717b, shininess: 38, side: THREE.DoubleSide,

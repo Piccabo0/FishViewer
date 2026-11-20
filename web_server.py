@@ -19,8 +19,10 @@ from pathlib import Path
 
 
 PROJECT_DIR = Path(__file__).resolve().parent
-COMMANDS_FILE = PROJECT_DIR / "quick_commands.json"
-IMU_CONFIG_FILE = PROJECT_DIR / "imu_frame_config.json"
+DATA_DIR = PROJECT_DIR / "data"
+COMMANDS_FILE = DATA_DIR / "quick_commands.json"
+IMU_CONFIG_FILE = DATA_DIR / "imu_frame_config.json"
+SERVO_CONFIG_FILE = DATA_DIR / "servo_config.json"
 
 
 class FishLinkRequestHandler(SimpleHTTPRequestHandler):
@@ -36,6 +38,18 @@ class FishLinkRequestHandler(SimpleHTTPRequestHandler):
     }
 
     def do_GET(self) -> None:
+        if self.path == "/api/servo-config":
+            try:
+                data = SERVO_CONFIG_FILE.read_bytes()
+            except OSError:
+                self.send_error(500, "Cannot read servo configuration")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if self.path == "/api/imu-config":
             try:
                 data = IMU_CONFIG_FILE.read_bytes()
@@ -63,6 +77,28 @@ class FishLinkRequestHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_PUT(self) -> None:
+        if self.path == "/api/servo-config":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 1024:
+                    raise ValueError("Invalid size")
+                config = json.loads(self.rfile.read(length))
+                if (not isinstance(config, dict)
+                    or any(type(config.get(key)) is not int or not -60 <= config[key] <= 60
+                           for key in ("minAngle", "maxAngle"))
+                    or config["minAngle"] >= config["maxAngle"]
+                    or set(config) != {"minAngle", "maxAngle"}):
+                    raise ValueError("Invalid servo configuration")
+                payload = (json.dumps(config, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+                temporary = SERVO_CONFIG_FILE.with_suffix(".json.tmp")
+                temporary.write_bytes(payload)
+                temporary.replace(SERVO_CONFIG_FILE)
+            except (ValueError, UnicodeDecodeError, OSError):
+                self.send_error(400, "Invalid servo configuration")
+                return
+            self.send_response(204)
+            self.end_headers()
+            return
         if self.path == "/api/imu-config":
             try:
                 length = int(self.headers.get("Content-Length", "0"))

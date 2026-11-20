@@ -110,10 +110,7 @@
             <p class="eyebrow">3D ATTITUDE</p>
             <h1 id="overviewTitle">IMU 姿态</h1>
           </div>
-          <div class="imu-heading-actions">
-            <span id="imuStatus" class="imu-connection-status">等待 IMU 数据帧</span>
-            <button id="imuConfigButton" class="imu-config-button" type="button">帧格式配置</button>
-          </div>
+          <button id="imuConfigButton" class="imu-config-button" type="button">帧格式配置</button>
         </div>
 
         <div class="imu-placeholder">
@@ -261,8 +258,44 @@
           </section>
         </div>
       </section>
+      <section class="panel servo-panel" aria-labelledby="servoTitle">
+        <div class="panel-heading">
+          <div><p class="eyebrow">SERVO CONTROL</p><h2 id="servoTitle">舵机控制</h2></div>
+          <button id="servoSettingsButton" class="imu-config-button" type="button">角度范围设置</button>
+        </div>
+        <div class="servo-workspace">
+          <div class="servo-viewport" aria-label="机器鱼胸鳍三维视图">
+            <canvas id="servoCanvas" class="servo-canvas" aria-label="可拖动旋转并滚轮缩放的机器鱼模型"></canvas>
+            <span id="servoModelStatus" class="servo-model-status">正在加载机器鱼模型…</span>
+          </div>
+          <div class="servo-controls">
+            <div class="servo-angle-heading"><span>目标角度</span><strong><output id="servoAngleValue">0</output><small>°</small></strong></div>
+            <div class="servo-control-row">
+              <button id="servoDecrease" type="button" aria-label="舵机角度减一度" disabled>−</button>
+              <input id="servoAngleSlider" type="range" min="-60" max="60" step="1" value="0" aria-label="目标角度" disabled />
+              <button id="servoIncrease" type="button" aria-label="舵机角度加一度" disabled>＋</button>
+            </div>
+            <div class="servo-range-labels"><span id="servoMinLabel">−60°</span><span id="servoMaxLabel">60°</span></div>
+            <form id="servoDirectForm" class="servo-direct-form">
+              <label for="servoDirectAngle">直接设置</label>
+              <div class="servo-direct-input"><input id="servoDirectAngle" type="number" min="-60" max="60" step="1" value="0" required aria-label="直接输入舵机角度" disabled /><span>°</span></div>
+              <button type="submit" disabled>发送</button>
+            </form>
+          </div>
+        </div>
+      </section>
     </main>
 
+    <dialog id="servoSettingsDialog" class="quick-command-dialog servo-settings-dialog" aria-labelledby="servoSettingsTitle">
+      <form id="servoSettingsForm">
+        <h2 id="servoSettingsTitle">舵机角度范围</h2>
+        <div class="servo-settings-grid">
+          <label>最小角度（°）<input id="servoMinInput" type="number" min="-60" max="60" step="1" required /></label>
+          <label>最大角度（°）<input id="servoMaxInput" type="number" min="-60" max="60" step="1" required /></label>
+        </div>
+        <div class="quick-dialog-actions"><span></span><button id="cancelServoSettings" type="button">取消</button><button type="submit">保存</button></div>
+      </form>
+    </dialog>
     <dialog id="imuConfigDialog" class="quick-command-dialog imu-config-dialog" aria-labelledby="imuConfigTitle">
       <form id="imuConfigForm">
         <h2 id="imuConfigTitle">IMU 数据帧配置</h2>
@@ -347,7 +380,8 @@
     <div class="toast-region" id="toastRegion" aria-live="assertive"></div>
     <script src="vendor/three.r128.min.js"></script>
     <script src="vendor/STLLoader.r128.js"></script>
-    <script src="imu_viewer.js"></script>
-    <script src="app.js"></script>
+    <script src="js/imu_viewer.js"></script>
+    <script src="js/servo_viewer.js"></script>
+    <script src="js/app.js"></script>
   </body>
 </html>

@@ -203,6 +203,187 @@ $("#deleteQuickCommand").addEventListener("click", async () => {
 });
 loadQuickCommands();
 
+const servoState = { minAngle: -60, maxAngle: 60, angle: 0 };
+let servoSendTimer = null;
+let servoSendQueue = Promise.resolve();
+
+function validateServoConfig(config) {
+  const minAngle = Number(config?.minAngle);
+  const maxAngle = Number(config?.maxAngle);
+  if (!Number.isInteger(minAngle) || !Number.isInteger(maxAngle) ||
+      minAngle < -60 || maxAngle > 60 || minAngle >= maxAngle) {
+    throw new Error("舵机角度范围须为 -60° 到 60° 内递增的整数");
+  }
+  return { minAngle, maxAngle };
+}
+
+function renderServoControls() {
+  const slider = $("#servoAngleSlider");
+  const connected = appState.source === "serial";
+  slider.min = servoState.minAngle;
+  slider.max = servoState.maxAngle;
+  slider.value = servoState.angle;
+  slider.disabled = !connected;
+  const directInput = $("#servoDirectAngle");
+  directInput.min = servoState.minAngle;
+  directInput.max = servoState.maxAngle;
+  directInput.value = servoState.angle;
+  directInput.disabled = !connected;
+  $("#servoDirectForm button[type='submit']").disabled = !connected;
+  $("#servoAngleValue").value = String(servoState.angle);
+  $("#servoAngleValue").textContent = String(servoState.angle);
+  $("#servoMinLabel").textContent = `${servoState.minAngle}°`;
+  $("#servoMaxLabel").textContent = `${servoState.maxAngle}°`;
+  $("#servoDecrease").disabled = !connected || servoState.angle <= servoState.minAngle;
+  $("#servoIncrease").disabled = !connected || servoState.angle >= servoState.maxAngle;
+}
+
+function setServoAngle(value) {
+  servoState.angle = Math.max(servoState.minAngle, Math.min(servoState.maxAngle, Math.round(Number(value))));
+  renderServoControls();
+  window.servoViewer?.setAngle(servoState.angle);
+}
+
+function buildServoFrame(angle) {
+  if (!Number.isInteger(angle) || angle < -60 || angle > 60) throw new Error("舵机角度必须为 -60° 到 60° 的整数");
+  const data = angle + 60;
+  return Uint8Array.of(0xFF, 0xFE, 0x02, 0x01, data, data);
+}
+
+function cancelServoSendTimer() {
+  if (servoSendTimer !== null) window.clearTimeout(servoSendTimer);
+  servoSendTimer = null;
+}
+
+function queueServoSend(angle) {
+  servoSendQueue = servoSendQueue.then(async () => {
+    if (appState.source !== "serial") throw new Error("请先连接串口设备");
+    const frame = buildServoFrame(angle);
+    await serial.send(frame, { appendNewline: false });
+    writeLog("TX", formatHex(frame));
+  }).catch((error) => toast(error.message, "warn"));
+}
+
+function scheduleServoSend(angle, delay = 0) {
+  cancelServoSendTimer();
+  if (appState.source !== "serial") {
+    if (!delay) toast("请先连接串口设备", "warn");
+    return;
+  }
+  if (delay) servoSendTimer = window.setTimeout(() => { servoSendTimer = null; queueServoSend(angle); }, delay);
+  else queueServoSend(angle);
+}
+
+function applyServoConfig(config) {
+  Object.assign(servoState, validateServoConfig(config));
+  setServoAngle(servoState.angle);
+}
+
+async function loadServoConfig() {
+  try {
+    const response = await fetch("/api/servo-config");
+    if (!response.ok) throw new Error();
+    applyServoConfig(await response.json());
+  } catch { renderServoControls(); }
+}
+
+$("#servoAngleSlider").addEventListener("input", (event) => {
+  setServoAngle(event.target.value);
+  scheduleServoSend(servoState.angle, 120);
+});
+$("#servoAngleSlider").addEventListener("change", (event) => {
+  setServoAngle(event.target.value);
+  scheduleServoSend(servoState.angle);
+});
+const servoHoldStops = [];
+
+function bindServoHold(button, direction) {
+  let pointerId = null;
+  let startTimer = null;
+  let repeatTimer = null;
+
+  function stop() {
+    if (startTimer !== null) window.clearTimeout(startTimer);
+    if (repeatTimer !== null) window.clearInterval(repeatTimer);
+    startTimer = null;
+    repeatTimer = null;
+    if (pointerId !== null && button.hasPointerCapture(pointerId)) button.releasePointerCapture(pointerId);
+    pointerId = null;
+  }
+
+  function step() {
+    if (button.disabled) { stop(); return; }
+    setServoAngle(servoState.angle + direction);
+    scheduleServoSend(servoState.angle);
+    if (button.disabled) stop();
+  }
+
+  button.addEventListener("pointerdown", (event) => {
+    if (button.disabled || event.button !== 0) return;
+    stop();
+    pointerId = event.pointerId;
+    button.setPointerCapture(pointerId);
+    step();
+    if (pointerId !== null) {
+      startTimer = window.setTimeout(() => {
+        startTimer = null;
+        repeatTimer = window.setInterval(step, 120);
+      }, 350);
+    }
+  });
+  button.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== pointerId) return;
+    const rect = button.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right ||
+        event.clientY < rect.top || event.clientY > rect.bottom) stop();
+  });
+  button.addEventListener("pointerup", stop);
+  button.addEventListener("pointercancel", stop);
+  button.addEventListener("lostpointercapture", stop);
+  button.addEventListener("click", (event) => {
+    if (event.detail === 0) step();
+  });
+  servoHoldStops.push(stop);
+}
+
+bindServoHold($("#servoDecrease"), -1);
+bindServoHold($("#servoIncrease"), 1);
+window.addEventListener("blur", () => servoHoldStops.forEach((stop) => stop()));
+$("#servoDirectForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const value = $("#servoDirectAngle").value;
+  const angle = Number(value);
+  if (!value.trim() || !Number.isInteger(angle) || angle < servoState.minAngle || angle > servoState.maxAngle) {
+    toast(`请输入 ${servoState.minAngle}° 到 ${servoState.maxAngle}° 之间的整数角度`, "warn");
+    return;
+  }
+  setServoAngle(angle);
+  scheduleServoSend(angle);
+});
+$("#servoSettingsButton").addEventListener("click", () => {
+  $("#servoMinInput").value = servoState.minAngle;
+  $("#servoMaxInput").value = servoState.maxAngle;
+  $("#servoSettingsDialog").showModal();
+});
+$("#cancelServoSettings").addEventListener("click", () => $("#servoSettingsDialog").close());
+$("#servoSettingsForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const config = validateServoConfig({ minAngle: $("#servoMinInput").value, maxAngle: $("#servoMaxInput").value });
+    const response = await fetch("/api/servo-config", {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config),
+    });
+    if (!response.ok) throw new Error("舵机范围保存失败，请使用本地 web_server.py 启动页面");
+    servoHoldStops.forEach((stop) => stop());
+    cancelServoSendTimer();
+    applyServoConfig(config);
+    $("#servoSettingsDialog").close();
+    toast("舵机角度范围已保存");
+  } catch (error) { toast(error.message, "warn"); }
+});
+renderServoControls();
+loadServoConfig();
+
 function timestamp(date = new Date()) {
   return date.toLocaleTimeString("zh-CN", { hour12: false }) + `.${String(date.getMilliseconds()).padStart(3, "0")}`;
 }
@@ -370,8 +551,6 @@ function compileImuConfig(config) {
 function applyImuConfig(config) {
   Object.assign(imuState, compileImuConfig(config));
   imuState.bytes = [];
-  $("#imuStatus").textContent = "等待 IMU 数据帧";
-  $("#imuStatus").classList.remove("connected");
   $("#imuRoll").textContent = "--°";
   $("#imuPitch").textContent = "--°";
   $("#imuYaw").textContent = "--°";
@@ -380,8 +559,6 @@ function applyImuConfig(config) {
 
 function markImuDisconnected() {
   imuState.bytes = [];
-  $("#imuStatus").textContent = "IMU 未接入";
-  $("#imuStatus").classList.remove("connected");
 }
 
 function readImuSigned(frame, name) {
@@ -401,8 +578,6 @@ function handleImuFrame(frame) {
   const pitch = readImuSigned(frame, "PITCH") / angleDivisor;
   const yaw = readImuSigned(frame, "YAW") / angleDivisor;
   window.imuViewer?.setAttitude(roll, pitch, yaw);
-  $("#imuStatus").textContent = "IMU 数据已接入";
-  $("#imuStatus").classList.add("connected");
   $("#imuRoll").textContent = `${roll.toFixed(2)}°`;
   $("#imuPitch").textContent = `${pitch.toFixed(2)}°`;
   $("#imuYaw").textContent = `${yaw.toFixed(2)}°`;
@@ -585,6 +760,7 @@ async function connectSerial() {
     const serialOptions = getSerialOptions();
     await serial.connect(serialOptions, appState.selectedPort);
     appState.source = "serial";
+    renderServoControls();
     appState.connectedAt = Date.now();
     elements.portTrigger.disabled = true;
     elements.baudTrigger.disabled = true;
@@ -605,11 +781,14 @@ async function connectSerial() {
 }
 
 async function disconnectCurrent(reason = "连接已断开") {
+  servoHoldStops.forEach((stop) => stop());
+  cancelServoSendTimer();
   markImuDisconnected();
   stopLoopSend();
   flushConsoleReceiveBuffer();
   if (appState.source === "serial") await serial.disconnect();
   appState.source = "idle";
+  renderServoControls();
   appState.connectedAt = null;
   elements.portTrigger.disabled = false;
   elements.baudTrigger.disabled = false;
@@ -621,10 +800,13 @@ async function disconnectCurrent(reason = "连接已断开") {
 
 function handleUnexpectedDisconnect(reason) {
   if (appState.source !== "serial") return;
+  servoHoldStops.forEach((stop) => stop());
+  cancelServoSendTimer();
   markImuDisconnected();
   stopLoopSend();
   flushConsoleReceiveBuffer();
   appState.source = "idle";
+  renderServoControls();
   appState.connectedAt = null;
   elements.portTrigger.disabled = false;
   elements.baudTrigger.disabled = false;
