@@ -87,7 +87,7 @@
 
     // Apply one shared scene transform; neither STL needs a part offset.
     const center = bounds.getCenter(new THREE.Vector3());
-    const scale = 2.6 / largest;
+    const scale = 2.2 / largest;
     assembly.scale.setScalar(scale);
     assembly.position.copy(center).multiplyScalar(-scale);
     assembly.add(new THREE.Mesh(bodyGeometry, new THREE.MeshPhongMaterial({
