@@ -36,9 +36,10 @@
 
   const assembly = new THREE.Group();
   scene.add(assembly);
-  // Both STL files now use assembly coordinates. The fin shaft runs along X.
+  // Both STL files use assembly coordinates. The fin shaft is parallel to X
+  // and passes through y = -2.5, z = -65.8 in the STL coordinate system.
   const finPivot = new THREE.Group();
-  const hinge = new THREE.Vector3(0, -2.5, -35.8);
+  const hinge = new THREE.Vector3(0, -2.5, -65.8);
   finPivot.position.copy(hinge);
   assembly.add(finPivot);
 
