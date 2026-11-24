@@ -81,7 +81,7 @@
     }
     const center = bounds.getCenter(new THREE.Vector3());
     geometry.translate(-center.x, -center.y, -center.z);
-    geometry.scale(1.15 / largest, 1.15 / largest, 1.15 / largest);
+    geometry.scale(0.9 / largest, 0.9 / largest, 0.9 / largest);
     geometry.computeVertexNormals();
     body.add(new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
       color: 0xb5bcc4, specular: 0x68717b, shininess: 38, side: THREE.DoubleSide,

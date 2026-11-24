@@ -33,7 +33,7 @@
         <span class="status-dot" id="connectionDot"></span>
         <div>
           <strong id="connectionLabel">设备未连接</strong>
-          <small id="connectionHint">请选择串口和波特率</small>
+          <small id="connectionHint"></small>
         </div>
       </div>
 
@@ -103,38 +103,68 @@
 
     </header>
 
-    <main class="dashboard">
-      <section class="panel overview-panel" aria-labelledby="overviewTitle">
+    <main class="dashboard" id="dashboard" data-active-page="0">
+      <section class="panel visualization-panel" aria-labelledby="overviewTitle">
         <div class="panel-heading">
           <div>
             <p class="eyebrow">3D ATTITUDE</p>
-            <h1 id="overviewTitle">IMU 姿态</h1>
+            <h1 id="overviewTitle">姿态可视化</h1>
           </div>
-          <button id="imuConfigButton" class="imu-config-button" type="button">帧格式配置</button>
+          <div class="visualization-actions">
+            <button id="imuConfigButton" class="imu-config-button" type="button">帧格式配置</button>
+            <button id="servoSettingsButton" class="imu-config-button" type="button">角度范围设置</button>
+          </div>
         </div>
 
-        <div class="imu-placeholder">
-          <div class="attitude-viewport" aria-label="IMU 三维姿态视图">
-            <canvas id="imuCanvas" class="imu-canvas" aria-label="IMU 三维姿态视图"></canvas>
-            <span id="imuModelStatus" class="imu-model-status">正在加载 IMU.STL…</span>
-          </div>
-          <div class="imu-readouts" aria-label="IMU 解析值">
-            <div class="imu-value"><span>ROLL</span><strong id="imuRoll">--°</strong></div>
-            <div class="imu-value"><span>PITCH</span><strong id="imuPitch">--°</strong></div>
-            <div class="imu-value"><span>YAW</span><strong id="imuYaw">--°</strong></div>
-            <div class="imu-vector-card">
-              <div class="imu-vector-heading"><span>加速度</span><small>g</small></div>
-              <div class="imu-axis-value"><span>X</span><strong id="imuAx">--</strong></div>
-              <div class="imu-axis-value"><span>Y</span><strong id="imuAy">--</strong></div>
-              <div class="imu-axis-value"><span>Z</span><strong id="imuAz">--</strong></div>
-            </div>
-            <div class="imu-vector-card">
-              <div class="imu-vector-heading"><span>角速度</span><small>°/s</small></div>
-              <div class="imu-axis-value"><span>X</span><strong id="imuGx">--</strong></div>
-              <div class="imu-axis-value"><span>Y</span><strong id="imuGy">--</strong></div>
-              <div class="imu-axis-value"><span>Z</span><strong id="imuGz">--</strong></div>
+        <div class="visualization-views">
+          <div class="visualization-view">
+            <div class="attitude-viewport" aria-label="IMU 三维姿态视图">
+              <canvas id="imuCanvas" class="imu-canvas" aria-label="IMU 三维姿态视图"></canvas>
+              <span id="imuModelStatus" class="imu-model-status">正在加载 IMU.STL…</span>
             </div>
           </div>
+          <div class="visualization-view">
+            <div class="servo-viewport" aria-label="机器鱼胸鳍三维视图">
+              <canvas id="servoCanvas" class="servo-canvas" aria-label="可拖动旋转并滚轮缩放的机器鱼模型"></canvas>
+              <span id="servoModelStatus" class="servo-model-status">正在加载机器鱼模型…</span>
+            </div>
+          </div>
+        </div>
+        <div class="imu-readouts" aria-label="IMU 解析值">
+            <div class="imu-vector-card imu-attitude-card">
+              <div class="imu-vector-heading"><span>姿态角</span></div>
+              <div class="imu-axis-value"><span>R</span><span class="imu-axis-reading"><strong id="imuRoll">--</strong><small>°</small></span></div>
+              <div class="imu-axis-value"><span>P</span><span class="imu-axis-reading"><strong id="imuPitch">--</strong><small>°</small></span></div>
+              <div class="imu-axis-value"><span>Y</span><span class="imu-axis-reading"><strong id="imuYaw">--</strong><small>°</small></span></div>
+            </div>
+            <div class="imu-vector-card">
+              <div class="imu-vector-heading"><span>加速度</span></div>
+              <div class="imu-axis-value"><span>ddX</span><span class="imu-axis-reading"><strong id="imuAx">--</strong><small>g</small></span></div>
+              <div class="imu-axis-value"><span>ddY</span><span class="imu-axis-reading"><strong id="imuAy">--</strong><small>g</small></span></div>
+              <div class="imu-axis-value"><span>ddZ</span><span class="imu-axis-reading"><strong id="imuAz">--</strong><small>g</small></span></div>
+            </div>
+            <div class="imu-vector-card">
+              <div class="imu-vector-heading"><span>角速度</span></div>
+              <div class="imu-axis-value"><span>dX</span><span class="imu-axis-reading"><strong id="imuGx">--</strong><small>°/s</small></span></div>
+              <div class="imu-axis-value"><span>dY</span><span class="imu-axis-reading"><strong id="imuGy">--</strong><small>°/s</small></span></div>
+              <div class="imu-axis-value"><span>dZ</span><span class="imu-axis-reading"><strong id="imuGz">--</strong><small>°/s</small></span></div>
+            </div>
+        </div>
+        <div class="servo-controls visualization-servo-controls">
+          <div class="servo-angle-heading"><span>舵机目标角度</span><strong><output id="servoAngleValue">0</output><small>°</small></strong></div>
+          <div class="servo-control-row">
+            <button id="servoDecrease" type="button" aria-label="舵机角度减一度" disabled>−</button>
+            <div class="servo-slider-track">
+              <input id="servoAngleSlider" type="range" min="-60" max="60" step="1" value="0" aria-label="目标角度" disabled />
+              <div class="servo-range-labels"><span id="servoMinLabel">−60°</span><span id="servoMaxLabel">60°</span></div>
+            </div>
+            <button id="servoIncrease" type="button" aria-label="舵机角度加一度" disabled>＋</button>
+          </div>
+          <form id="servoDirectForm" class="servo-direct-form">
+            <label for="servoDirectAngle">直接设置</label>
+            <div class="servo-direct-input"><input id="servoDirectAngle" type="number" min="-60" max="60" step="1" value="0" required aria-label="直接输入舵机角度" disabled /><span>°</span></div>
+            <button type="submit" disabled>发送</button>
+          </form>
         </div>
       </section>
 
@@ -258,33 +288,13 @@
           </section>
         </div>
       </section>
-      <section class="panel servo-panel" aria-labelledby="servoTitle">
-        <div class="panel-heading">
-          <div><p class="eyebrow">SERVO CONTROL</p><h2 id="servoTitle">舵机控制</h2></div>
-          <button id="servoSettingsButton" class="imu-config-button" type="button">角度范围设置</button>
-        </div>
-        <div class="servo-workspace">
-          <div class="servo-viewport" aria-label="机器鱼胸鳍三维视图">
-            <canvas id="servoCanvas" class="servo-canvas" aria-label="可拖动旋转并滚轮缩放的机器鱼模型"></canvas>
-            <span id="servoModelStatus" class="servo-model-status">正在加载机器鱼模型…</span>
-          </div>
-          <div class="servo-controls">
-            <div class="servo-angle-heading"><span>目标角度</span><strong><output id="servoAngleValue">0</output><small>°</small></strong></div>
-            <div class="servo-control-row">
-              <button id="servoDecrease" type="button" aria-label="舵机角度减一度" disabled>−</button>
-              <input id="servoAngleSlider" type="range" min="-60" max="60" step="1" value="0" aria-label="目标角度" disabled />
-              <button id="servoIncrease" type="button" aria-label="舵机角度加一度" disabled>＋</button>
-            </div>
-            <div class="servo-range-labels"><span id="servoMinLabel">−60°</span><span id="servoMaxLabel">60°</span></div>
-            <form id="servoDirectForm" class="servo-direct-form">
-              <label for="servoDirectAngle">直接设置</label>
-              <div class="servo-direct-input"><input id="servoDirectAngle" type="number" min="-60" max="60" step="1" value="0" required aria-label="直接输入舵机角度" disabled /><span>°</span></div>
-              <button type="submit" disabled>发送</button>
-            </form>
-          </div>
-        </div>
-      </section>
+      <iframe id="secondaryBoard" class="secondary-board-frame" title="第二块开发板控制台" allow="serial" aria-hidden="true" inert></iframe>
     </main>
+
+    <nav class="page-navigation" aria-label="页面切换">
+      <button class="page-dot active" type="button" data-page="0" aria-label="主页：姿态可视化与串口助手" aria-current="page"></button>
+      <button class="page-dot" type="button" data-page="1" aria-label="第二页：独立开发板串口助手"></button>
+    </nav>
 
     <dialog id="servoSettingsDialog" class="quick-command-dialog servo-settings-dialog" aria-labelledby="servoSettingsTitle">
       <form id="servoSettingsForm">
@@ -378,10 +388,12 @@
     </div>
 
     <div class="toast-region" id="toastRegion" aria-live="assertive"></div>
+    <script src="js/board_mode.js"></script>
     <script src="vendor/three.r128.min.js"></script>
     <script src="vendor/STLLoader.r128.js"></script>
     <script src="js/imu_viewer.js"></script>
     <script src="js/servo_viewer.js"></script>
     <script src="js/app.js"></script>
+    <script src="js/page_navigation.js"></script>
   </body>
 </html>

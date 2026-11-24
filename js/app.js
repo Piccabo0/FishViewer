@@ -202,6 +202,11 @@ $("#deleteQuickCommand").addEventListener("click", async () => {
   } catch (error) { toast(error.message, "warn"); }
 });
 loadQuickCommands();
+window.addEventListener("storage", (event) => {
+  if (event.key !== quickCommandStorageKey) return;
+  quickCommandState.selectedIndex = null;
+  loadQuickCommands();
+});
 
 const servoState = { minAngle: -60, maxAngle: 60, angle: 0 };
 let servoSendTimer = null;
@@ -551,9 +556,9 @@ function compileImuConfig(config) {
 function applyImuConfig(config) {
   Object.assign(imuState, compileImuConfig(config));
   imuState.bytes = [];
-  $("#imuRoll").textContent = "--°";
-  $("#imuPitch").textContent = "--°";
-  $("#imuYaw").textContent = "--°";
+  $("#imuRoll").textContent = "--";
+  $("#imuPitch").textContent = "--";
+  $("#imuYaw").textContent = "--";
   for (const id of ["imuAx", "imuAy", "imuAz", "imuGx", "imuGy", "imuGz"]) $(`#${id}`).textContent = "--";
 }
 
@@ -578,9 +583,9 @@ function handleImuFrame(frame) {
   const pitch = readImuSigned(frame, "PITCH") / angleDivisor;
   const yaw = readImuSigned(frame, "YAW") / angleDivisor;
   window.imuViewer?.setAttitude(roll, pitch, yaw);
-  $("#imuRoll").textContent = `${roll.toFixed(2)}°`;
-  $("#imuPitch").textContent = `${pitch.toFixed(2)}°`;
-  $("#imuYaw").textContent = `${yaw.toFixed(2)}°`;
+  $("#imuRoll").textContent = roll.toFixed(2);
+  $("#imuPitch").textContent = pitch.toFixed(2);
+  $("#imuYaw").textContent = yaw.toFixed(2);
   $("#imuAx").textContent = ax.toFixed(3);
   $("#imuAy").textContent = ay.toFixed(3);
   $("#imuAz").textContent = az.toFixed(3);
@@ -794,7 +799,7 @@ async function disconnectCurrent(reason = "连接已断开") {
   elements.baudTrigger.disabled = false;
   setSerialSettingsDisabled(false);
   elements.connectButton.innerHTML = '<span class="button-icon">⚡</span>连接设备';
-  setConnectionState("", "设备未连接", "请选择串口和波特率");
+  setConnectionState("", "设备未连接", "");
   writeLog("SYS", reason);
 }
 
@@ -1237,8 +1242,8 @@ $("#exportLog").addEventListener("click", () => {
 if ("serial" in navigator) {
   refreshSerialPorts().catch((error) => writeLog("ERR", error.message, "warn"));
   navigator.serial.addEventListener("connect", () => refreshSerialPorts());
-  navigator.serial.addEventListener("disconnect", () => {
-    handleUnexpectedDisconnect("USB 设备已拔出");
+  navigator.serial.addEventListener("disconnect", (event) => {
+    if (event.target === serial.port) handleUnexpectedDisconnect("USB 设备已拔出");
     refreshSerialPorts();
   });
 } else {

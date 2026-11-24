@@ -24,7 +24,7 @@
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
   // Show the fish horizontally: round nose left, tail right, near fin below.
   camera.up.set(1, 0, -0.12);
-  camera.position.set(-3, 2.2, 0.5);
+  camera.position.set(-3, 2.5, 0.5);
   camera.lookAt(0, 0, 0);
   scene.add(new THREE.AmbientLight(0xffffff, 0.85));
   const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
