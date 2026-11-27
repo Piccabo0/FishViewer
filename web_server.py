@@ -10,12 +10,14 @@ import argparse
 import contextlib
 import json
 import os
+import shutil
 import socket
 import sys
 import webbrowser
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from camera_backend import camera_backend
 
 
 PROJECT_DIR = Path(__file__).resolve().parent
@@ -38,6 +40,54 @@ class FishLinkRequestHandler(SimpleHTTPRequestHandler):
     }
 
     def do_GET(self) -> None:
+        if self.path == "/api/camera/devices":
+            try:
+                self.send_json({"devices": camera_backend.list_devices()})
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 503)
+            return
+        if self.path == "/api/camera/status":
+            self.send_json(camera_backend.status())
+            return
+        if self.path.startswith("/api/camera/recording/"):
+            filename = self.path.removeprefix("/api/camera/recording/")
+            if not filename.startswith("daheng-") or not filename.endswith(".avi") or any(
+                character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-." for character in filename
+            ):
+                self.send_error(404)
+                return
+            path = camera_backend.recording_file(filename)
+            if path is None:
+                self.send_error(404)
+                return
+            try:
+                recording = path.open("rb")
+            except OSError:
+                self.send_error(404)
+                return
+            with recording:
+                self.send_response(200)
+                self.send_header("Content-Type", "video/x-msvideo")
+                self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+                self.send_header("Content-Length", str(path.stat().st_size))
+                self.end_headers()
+                shutil.copyfileobj(recording, self.wfile)
+            return
+        if self.path.split("?", 1)[0] == "/api/camera/frame":
+            try:
+                frame = camera_backend.jpeg()
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 503)
+                return
+            if frame is None:
+                self.send_error(404, "No camera frame")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(len(frame)))
+            self.end_headers()
+            self.wfile.write(frame)
+            return
         if self.path == "/api/servo-config":
             try:
                 data = SERVO_CONFIG_FILE.read_bytes()
@@ -75,6 +125,58 @@ class FishLinkRequestHandler(SimpleHTTPRequestHandler):
             self.wfile.write(data)
             return
         super().do_GET()
+
+    def do_POST(self) -> None:
+        if self.path not in {"/api/camera/open", "/api/camera/start", "/api/camera/stop", "/api/camera/close", "/api/camera/configure", "/api/camera/record/start", "/api/camera/record/stop", "/api/camera/record/directory"}:
+            self.send_error(404)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 <= length <= 1024:
+                raise ValueError("请求内容过长")
+            data = json.loads(self.rfile.read(length)) if length else {}
+            if not isinstance(data, dict):
+                raise ValueError("无效请求")
+            action = self.path.removeprefix("/api/camera/")
+            if action == "open":
+                if type(data.get("index")) is not int:
+                    raise ValueError("请选择相机")
+                camera_backend.open(data["index"])
+            elif action == "start":
+                camera_backend.start()
+            elif action == "stop":
+                camera_backend.stop()
+            elif action == "close":
+                camera_backend.close()
+            elif action == "record/start":
+                camera_backend.start_recording()
+            elif action == "record/stop":
+                camera_backend.stop_recording()
+            elif action == "record/directory":
+                if set(data) != {"directory"}:
+                    raise ValueError("录像路径无效")
+                camera_backend.set_recording_directory(data["directory"])
+            else:
+                if any(key not in {"autoExposure", "exposure", "autoWhite", "whiteBalanceRatios", "autoGain", "gain", "frameRateEnabled", "frameRate"} for key in data):
+                    raise ValueError("无效相机参数")
+                if any(type(data[key]) is not bool for key in ("autoExposure", "autoWhite", "autoGain", "frameRateEnabled") if key in data):
+                    raise ValueError("无效相机参数")
+                camera_backend.configure(data.get("autoExposure"), data.get("exposure"), data.get("autoWhite"),
+                                         data.get("whiteBalanceRatios"), data.get("autoGain"), data.get("gain"),
+                                         data.get("frameRateEnabled"), data.get("frameRate"))
+            self.send_json(camera_backend.status())
+        except (ValueError, json.JSONDecodeError) as exc:
+            self.send_json({"error": str(exc)}, 400)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, 503)
+
+    def send_json(self, data: dict, status: int = 200) -> None:
+        payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
     def do_PUT(self) -> None:
         if self.path == "/api/servo-config":

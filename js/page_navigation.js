@@ -5,6 +5,7 @@ const pageDots = [...document.querySelectorAll(".page-dot")];
 const pages = [
   [document.querySelector(".visualization-panel"), document.querySelector(".console-panel")],
   [document.querySelector("#secondaryBoard")],
+  [document.querySelector(".camera-panel")],
 ];
 const allPanels = [...new Set(pages.flat())];
 
@@ -14,6 +15,7 @@ let runningAnimations = [];
 function setPage(index) {
   dashboard.dataset.activePage = String(index);
   document.body.classList.toggle("page-two", index === 1);
+  document.body.classList.toggle("page-three", index === 2);
   allPanels.forEach((panel) => {
     const visible = pages[index].includes(panel);
     panel.inert = !visible;

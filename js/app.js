@@ -438,13 +438,14 @@ class SerialConnection {
     this.buffer = "";
     this.onLine = onLine;
     this.onBytes = onBytes;
+    this.byteListeners = new Set();
   }
 
   async connect(options, selectedPort) {
     if (!("serial" in navigator)) throw new Error("当前浏览器不支持 Web Serial API");
     if (!selectedPort) throw new Error("请先选择串口");
+    await selectedPort.open(options);
     this.port = selectedPort;
-    await this.port.open(options);
     this.reading = true;
     this.readLoop();
   }
@@ -459,6 +460,7 @@ class SerialConnection {
             const { value, done } = await this.reader.read();
             if (done) break;
             this.onBytes(value);
+            for (const listener of this.byteListeners) listener(value);
             this.buffer += decoder.decode(value, { stream: true });
             const lines = this.buffer.split(/\r?\n/);
             this.buffer = lines.pop() ?? "";
@@ -477,6 +479,11 @@ class SerialConnection {
         handleUnexpectedDisconnect(error.message);
       }
     }
+  }
+
+  addByteListener(listener) {
+    this.byteListeners.add(listener);
+    return () => this.byteListeners.delete(listener);
   }
 
   async send(payload, { appendNewline = true } = {}) {
@@ -777,9 +784,14 @@ async function connectSerial() {
     writeLog("SYS", `串口连接成功 · ${serialOptions.baudRate} baud · ${frame} · ${flow}`);
     toast("串口连接成功");
   } catch (error) {
-    setConnectionState("error", "连接失败", error.message);
-    writeLog("ERR", error.message, "error");
-    toast(error.message, "error");
+    const message = error.name === "InvalidStateError"
+      ? "串口已打开，请先在占用它的页面断开连接"
+      : error.message.includes("Failed to open serial port")
+        ? "串口打开失败：请确认开发板仍连接、串口未被其他程序占用，并重新选择串口"
+        : error.message;
+    setConnectionState("error", "连接失败", message);
+    writeLog("ERR", `${message} · ${error.name}: ${error.message}`, "error");
+    toast(message, "error");
   } finally {
     elements.connectButton.disabled = false;
   }
@@ -793,6 +805,7 @@ async function disconnectCurrent(reason = "连接已断开") {
   flushConsoleReceiveBuffer();
   if (appState.source === "serial") await serial.disconnect();
   appState.source = "idle";
+  window.dispatchEvent(new Event("fishlink:disconnected"));
   renderServoControls();
   appState.connectedAt = null;
   elements.portTrigger.disabled = false;
@@ -811,6 +824,7 @@ function handleUnexpectedDisconnect(reason) {
   stopLoopSend();
   flushConsoleReceiveBuffer();
   appState.source = "idle";
+  window.dispatchEvent(new Event("fishlink:disconnected"));
   renderServoControls();
   appState.connectedAt = null;
   elements.portTrigger.disabled = false;
@@ -965,6 +979,17 @@ function renderPortMenu() {
     });
     elements.portMenu.append(option);
   });
+  const addPort = document.createElement("button");
+  addPort.className = "baud-option port-option";
+  addPort.type = "button";
+  addPort.role = "option";
+  addPort.setAttribute("aria-selected", "false");
+  addPort.textContent = "＋ 添加串口…";
+  addPort.addEventListener("click", (event) => {
+    event.stopPropagation();
+    authorizeFirstSerialPort();
+  });
+  elements.portMenu.append(addPort);
 }
 
 async function authorizeFirstSerialPort() {
@@ -987,8 +1012,6 @@ async function refreshSerialPorts(preferredPort = null) {
 
   if (preferredPort) appState.selectedPort = preferredPort;
   if (appState.selectedPort && !ports.includes(appState.selectedPort)) appState.selectedPort = null;
-  if (!appState.selectedPort && ports.length === 1) appState.selectedPort = ports[0];
-
   if (appState.selectedPort) {
     elements.portSelected.textContent = portDisplayName(
       appState.selectedPort,
@@ -1078,7 +1101,7 @@ elements.portTrigger.addEventListener("keydown", async (event) => {
 
 elements.portMenu.addEventListener("keydown", (event) => {
   const options = [...elements.portMenu.querySelectorAll(".port-option:not(:disabled)")];
-  const currentIndex = options.indexOf(document.activeElement);
+  const currentIndex = options.indexOf(elements.portMenu.ownerDocument.activeElement);
   if (event.key === "Escape") {
     event.preventDefault();
     setPortMenuOpen(false);
@@ -1152,7 +1175,7 @@ for (const option of baudOptions) {
 }
 
 elements.baudMenu.addEventListener("keydown", (event) => {
-  const currentIndex = baudOptions.indexOf(document.activeElement);
+  const currentIndex = baudOptions.indexOf(elements.baudMenu.ownerDocument.activeElement);
   if (event.key === "Escape") {
     event.preventDefault();
     setBaudMenuOpen(false);

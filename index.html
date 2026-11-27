@@ -100,6 +100,15 @@
           连接设备
         </button>
       </div>
+      <div class="camera-topbar-controls">
+        <div class="field compact-field camera-select-field">
+          <span id="cameraDeviceLabel">相机</span>
+          <select id="cameraDevice" aria-labelledby="cameraDeviceLabel"></select>
+          <button id="cameraRefresh" type="button" aria-label="刷新相机列表" title="刷新相机列表">↻</button>
+        </div>
+        <button id="cameraToggle" class="button primary" type="button" disabled>打开相机</button>
+        <button id="cameraSettingsButton" class="button secondary" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="cameraSettingsDialog">设置</button>
+      </div>
 
     </header>
 
@@ -288,13 +297,153 @@
           </section>
         </div>
       </section>
+      <section class="panel magtail-panel" aria-labelledby="magtailTitle" aria-hidden="true" inert>
+        <div class="panel-heading">
+          <div><p class="eyebrow">H-BRIDGE DRIVER</p><h2 id="magtailTitle">MagTail 控制</h2></div>
+        </div>
+        <div class="magtail-content">
+          <form class="magtail-section magtail-parameters" id="magtailParameters">
+            <h3>运行参数</h3>
+            <div class="magtail-parameter-row">
+              <label for="magtailDuty">占空比</label>
+              <div class="magtail-stepper">
+                <button type="button" data-step-target="magtailDuty" data-step-delta="-1" aria-label="占空比减一">−</button>
+                <input id="magtailDuty" type="number" min="0" max="99" step="1" value="50" required />
+                <button type="button" data-step-target="magtailDuty" data-step-delta="1" aria-label="占空比加一">＋</button><span>%</span>
+              </div>
+            </div>
+            <div class="magtail-voltage"><span>30V 换算值</span><output id="magtailVoltage">15.2 V</output></div>
+            <div class="magtail-parameter-row">
+              <label for="magtailFrequency">往复频率</label>
+              <div class="magtail-stepper">
+                <button type="button" data-step-target="magtailFrequency" data-step-delta="-1" aria-label="往复频率减一赫兹">−</button>
+                <input id="magtailFrequency" type="number" min="1" max="50" step="1" value="1" required />
+                <button type="button" data-step-target="magtailFrequency" data-step-delta="1" aria-label="往复频率加一赫兹">＋</button><span>Hz</span>
+              </div>
+            </div>
+            <button type="submit">设置参数</button>
+          </form>
+          <div class="magtail-section">
+            <div class="magtail-telemetry-heading">
+              <h3>电流原始值回传</h3>
+              <div class="magtail-reading"><span>ADC</span><strong id="magtailAdc">--</strong></div>
+            </div>
+            <button id="magtailTelemetryToggle" class="magtail-telemetry-toggle" type="button" aria-pressed="false">开启回传</button>
+          </div>
+          <p class="magtail-status" id="magtailStatus" role="status"></p>
+          <div class="magtail-section">
+            <h3>运行模式</h3>
+            <div class="magtail-action-grid">
+              <button type="button" data-magtail-mode="00"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" /></svg>停止</button>
+              <button type="button" data-magtail-mode="01"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 10a7 7 0 1 0 0 4M19 5v5h-5" /></svg>正转</button>
+              <button type="button" data-magtail-mode="02"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10a7 7 0 1 1 0 4M5 5v5h5" /></svg>反转</button>
+              <button type="button" data-magtail-mode="03"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5v14M17 5v14" /></svg>刹车</button>
+              <button type="button" data-magtail-mode="04" class="wide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16m-4-4 4 4-4 4M20 16H4m4-4-4 4 4 4" /></svg>往复转动</button>
+            </div>
+          </div>
+        </div>
+      </section>
       <iframe id="secondaryBoard" class="secondary-board-frame" title="第二块开发板控制台" allow="serial" aria-hidden="true" inert></iframe>
+      <section class="panel camera-panel" aria-labelledby="cameraTitle" aria-hidden="true" inert>
+        <div class="panel-heading"><h2 id="cameraTitle">大恒相机</h2><span id="cameraFps">帧率：--</span></div>
+        <div class="camera-layout">
+          <div class="camera-view"><img id="cameraImage" alt="大恒相机实时画面" hidden /><span id="cameraPlaceholder">打开相机并开启显示后显示画面</span></div>
+          <div class="camera-controls">
+            <div class="camera-actions">
+              <div class="camera-button-row"><button id="cameraAcquisitionToggle" type="button" disabled>开启显示</button><button id="cameraSnapshot" type="button" disabled>截取图像</button></div>
+              <div class="camera-button-row"><button id="cameraRecordingPathButton" type="button">录像存储路径</button><button id="cameraRecordToggle" type="button" disabled>开始录像</button></div>
+              <a id="cameraRecordingDownload" class="camera-download" hidden>下载录像</a>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
+
+    <dialog id="magtailConnectionWarning" class="magtail-warning-dialog" aria-labelledby="magtailConnectionWarningTitle">
+      <h2 id="magtailConnectionWarningTitle">警告</h2>
+      <p>请先连接第二页的开发板</p>
+      <button id="magtailConnectionWarningClose" type="button">知道了</button>
+    </dialog>
 
     <nav class="page-navigation" aria-label="页面切换">
       <button class="page-dot active" type="button" data-page="0" aria-label="主页：姿态可视化与串口助手" aria-current="page"></button>
-      <button class="page-dot" type="button" data-page="1" aria-label="第二页：独立开发板串口助手"></button>
+      <button class="page-dot" type="button" data-page="1" aria-label="第二页：MagTail 与串口助手"></button>
+      <button class="page-dot" type="button" data-page="2" aria-label="第三页：大恒相机"></button>
     </nav>
+
+    <dialog id="cameraSettingsDialog" class="camera-settings-dialog" aria-labelledby="cameraSettingsTitle">
+      <header class="serial-config-dialog-heading">
+        <h2 id="cameraSettingsTitle">相机设置</h2>
+        <button id="cameraSettingsClose" type="button" aria-label="关闭相机设置">×</button>
+      </header>
+      <div class="camera-settings-tabs" role="tablist" aria-label="相机参数">
+        <button id="cameraTabExposure" type="button" role="tab" aria-selected="true" aria-controls="cameraPageExposure" data-camera-tab="exposure">曝光</button>
+        <button id="cameraTabGain" type="button" role="tab" aria-selected="false" aria-controls="cameraPageGain" data-camera-tab="gain" tabindex="-1">增益</button>
+        <button id="cameraTabWhite" type="button" role="tab" aria-selected="false" aria-controls="cameraPageWhite" data-camera-tab="white" tabindex="-1">白平衡</button>
+        <button id="cameraTabFrameRate" type="button" role="tab" aria-selected="false" aria-controls="cameraPageFrameRate" data-camera-tab="frame-rate" tabindex="-1">采集帧率</button>
+      </div>
+      <div class="camera-settings">
+        <section id="cameraPageExposure" class="camera-settings-page" role="tabpanel" aria-labelledby="cameraTabExposure">
+          <div class="camera-setting-group">
+            <div class="camera-setting-head"><strong>曝光</strong><label class="camera-check"><input id="cameraAutoExposure" type="checkbox" checked />自动</label></div>
+            <div class="camera-range-setting">
+              <div class="camera-range-heading"><label for="cameraExposure">曝光时间</label><output id="cameraExposureValue" for="cameraExposure">20,000 μs</output></div>
+              <input id="cameraExposure" type="range" class="camera-range-slider" min="0" max="10000" step="1" value="6385" disabled />
+              <div class="camera-range-limits"><span>20 μs</span><span>1,000,000 μs</span></div>
+            </div>
+            <button id="cameraApply" type="button" disabled>应用曝光</button>
+          </div>
+        </section>
+        <section id="cameraPageGain" class="camera-settings-page" role="tabpanel" aria-labelledby="cameraTabGain" hidden>
+          <div class="camera-setting-group">
+            <div class="camera-setting-head"><strong>增益</strong><label class="camera-check"><input id="cameraAutoGain" type="checkbox" />自动</label></div>
+            <div class="camera-range-setting">
+              <div class="camera-range-heading"><label for="cameraGain">增益</label><output id="cameraGainValue" for="cameraGain">0 dB</output></div>
+              <input id="cameraGain" type="range" class="camera-range-slider" min="0" max="25" step="0.1" value="0" disabled />
+              <div class="camera-range-limits"><span>0 dB</span><span>25 dB</span></div>
+            </div>
+            <button id="cameraApplyGain" type="button" disabled>应用增益</button>
+          </div>
+        </section>
+        <section id="cameraPageWhite" class="camera-settings-page" role="tabpanel" aria-labelledby="cameraTabWhite" hidden>
+          <div class="camera-setting-group">
+            <div class="camera-setting-head"><strong>白平衡</strong><label class="camera-check"><input id="cameraAutoWhite" type="checkbox" checked />自动</label></div>
+            <div id="cameraWhiteBalanceManual" class="camera-white-balance-manual">
+              <div class="camera-white-balance-grid">
+                <label id="cameraWhiteRedField">k_R<input id="cameraWhiteRed" type="number" step="any" value="1" required disabled /></label>
+                <label id="cameraWhiteGreenField">k_G<input id="cameraWhiteGreen" type="number" step="any" value="1" required disabled /></label>
+                <label id="cameraWhiteBlueField">k_B<input id="cameraWhiteBlue" type="number" step="any" value="1" required disabled /></label>
+              </div>
+              <button id="cameraApplyWhite" type="button" disabled>应用白平衡</button>
+            </div>
+          </div>
+        </section>
+        <section id="cameraPageFrameRate" class="camera-settings-page" role="tabpanel" aria-labelledby="cameraTabFrameRate" hidden>
+          <div class="camera-setting-group">
+            <div class="camera-setting-head"><strong>采集帧率</strong><label class="camera-check"><input id="cameraFrameRateEnabled" type="checkbox" />限制帧率</label></div>
+            <label class="camera-setting-field" for="cameraFrameRate">帧率（Hz）<input id="cameraFrameRate" type="number" min="1" step="any" required disabled /></label>
+            <button id="cameraApplyFrameRate" type="button" disabled>应用帧率</button>
+          </div>
+        </section>
+        <p id="cameraSettingsError" class="camera-settings-error" role="alert" hidden></p>
+      </div>
+    </dialog>
+
+    <dialog id="cameraRecordingPathDialog" class="camera-settings-dialog camera-recording-path-dialog" aria-labelledby="cameraRecordingPathTitle">
+      <header class="serial-config-dialog-heading">
+        <h2 id="cameraRecordingPathTitle">录像存储路径</h2>
+        <button id="cameraRecordingPathClose" type="button" aria-label="关闭录像存储路径配置">×</button>
+      </header>
+      <form id="cameraRecordingPathForm">
+        <label for="cameraRecordingPathInput">文件夹路径</label>
+        <input id="cameraRecordingPathInput" type="text" required autocomplete="off" spellcheck="false" />
+        <p id="cameraRecordingPathError" class="camera-settings-error" role="alert" hidden></p>
+        <div class="camera-recording-path-actions">
+          <button id="cameraRecordingPathCancel" type="button">取消</button>
+          <button id="cameraRecordingPathSave" type="submit">保存</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog id="servoSettingsDialog" class="quick-command-dialog servo-settings-dialog" aria-labelledby="servoSettingsTitle">
       <form id="servoSettingsForm">
@@ -394,6 +543,8 @@
     <script src="js/imu_viewer.js"></script>
     <script src="js/servo_viewer.js"></script>
     <script src="js/app.js"></script>
+    <script src="js/magtail.js"></script>
     <script src="js/page_navigation.js"></script>
+    <script src="js/camera_viewer.js"></script>
   </body>
 </html>

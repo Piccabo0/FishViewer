@@ -156,7 +156,8 @@ select:focus-visible {
 .button:disabled { opacity: 0.46; cursor: not-allowed; transform: none; }
 .button-icon { margin-right: 6px; }
 
-.topbar > .connection-actions .field {
+.topbar > .connection-actions .field,
+.topbar > .camera-topbar-controls .field {
   position: relative;
   display: flex;
   align-items: center;
@@ -170,17 +171,20 @@ select:focus-visible {
   transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 
-.topbar > .connection-actions .field:hover {
+.topbar > .connection-actions .field:hover,
+.topbar > .camera-topbar-controls .field:hover {
   border-color: rgba(22, 182, 154, 0.3);
   background: #ffffff;
 }
 
-.topbar > .connection-actions .field:focus-within {
+.topbar > .connection-actions .field:focus-within,
+.topbar > .camera-topbar-controls .field:focus-within {
   border-color: rgba(22, 182, 154, 0.58);
   box-shadow: 0 0 0 3px rgba(22, 182, 154, 0.1), 0 8px 22px rgba(37, 94, 98, 0.08);
 }
 
-.topbar > .connection-actions .field > span {
+.topbar > .connection-actions .field > span,
+.topbar > .camera-topbar-controls .field > span {
   flex: none;
   color: var(--muted-2);
   font-size: 9px;
@@ -305,7 +309,8 @@ select:focus-visible {
 .baud-select.open .baud-trigger i { background: #e7f8f4; }
 .baud-select.open .baud-trigger i::after { transform: translate(-50%, -30%) rotate(225deg); }
 
-.topbar > .connection-actions .button {
+.topbar > .connection-actions .button,
+.topbar > .camera-topbar-controls .button {
   height: 46px;
   margin-left: 0;
   padding: 0 18px;
@@ -314,7 +319,8 @@ select:focus-visible {
   white-space: nowrap;
 }
 
-.topbar > .connection-actions .button:hover { transform: none; }
+.topbar > .connection-actions .button:hover,
+.topbar > .camera-topbar-controls .button:hover { transform: none; }
 
 .dashboard {
   --workspace-height: 520px;
@@ -614,13 +620,109 @@ body.modal-open { overflow: hidden; }
 /* The second board runs in its own document so each serial connection has its own state. */
 .dashboard { padding-bottom: 94px; }
 .secondary-board-frame { display: none; }
-.page-two > .topbar { display: none; }
+.camera-panel { display: none; }
+.camera-topbar-controls { display: none; }
+.page-two { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.page-two > .topbar { flex: none; }
+.page-two > .topbar > .connection-state,
+.page-two > .topbar > .connection-actions { display: none; }
+.topbar > .secondary-board-controls { display: none; }
+.page-two > .topbar > .secondary-board-controls { display: flex; }
+.page-three > .topbar > .connection-state,
+.page-three > .topbar > .connection-actions { display: none; }
+.page-three > .topbar > .camera-topbar-controls { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.camera-topbar-controls select { width: min(250px, 30vw); min-width: 0; height: 36px; padding: 0 12px; border: 1px solid rgba(44, 113, 116, 0.08); border-radius: 12px; background: #eef9f7; color: #28545a; font-size: 12px; font-weight: 650; }
+.camera-topbar-controls select:disabled { opacity: .55; }
+.camera-select-field button { width: 36px; height: 36px; flex: none; padding: 0; border: 1px solid rgba(44, 113, 116, 0.08); border-radius: 12px; background: #eef9f7; color: var(--mint-bright); font-size: 20px; cursor: pointer; }
+.camera-select-field button:hover { background: #e5f5f2; }
+.camera-select-field button:disabled { opacity: .5; cursor: default; }
+.dashboard[data-active-page="2"] { display: block; min-height: calc(100dvh - 78px); padding: 22px clamp(16px, 2vw, 32px) 94px; }
+.dashboard[data-active-page="2"] .visualization-panel,
+.dashboard[data-active-page="2"] .console-panel,
+.dashboard[data-active-page="2"] .secondary-board-frame { display: none; }
+.dashboard[data-active-page="2"] .camera-panel { display: block; width: 100%; }
+.camera-panel .panel-heading { display: flex; align-items: center; justify-content: space-between; }
+.camera-panel .panel-heading h2 { margin: 0; }
+#cameraFps { color: var(--muted-2); font-size: 12px; font-weight: 650; }
+.camera-layout { display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 18px; margin-top: 18px; }
+.camera-view { min-height: 420px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #152525; color: #d2e2e5; font-size: 12px; }
+.camera-view img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.camera-view img[hidden] { display: none; }
+.camera-controls { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+.camera-actions { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #f8fcfb; }
+.camera-settings-dialog { width: min(480px, calc(100% - 32px)); max-height: calc(100dvh - 36px); margin: auto; padding: 20px; overflow-y: auto; border: 1px solid rgba(22, 182, 154, 0.25); border-radius: 18px; background: linear-gradient(150deg, #ffffff, #f5fcfa); color: var(--text); box-shadow: 0 28px 70px rgba(25, 72, 76, 0.24); animation: modal-card-in 180ms ease-out; }
+.camera-settings-dialog::backdrop { background: rgba(25, 59, 66, 0.3); backdrop-filter: blur(7px); }
+.camera-settings-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin-top: 20px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: #edf7f4; }
+.camera-settings-tabs button { min-height: 36px; padding: 4px; border: 0; border-radius: 9px; background: transparent; color: var(--muted-2); font-size: 11px; font-weight: 650; cursor: pointer; }
+.camera-settings-tabs button[aria-selected="true"] { background: #fff; color: var(--mint-bright); box-shadow: 0 2px 8px rgba(37, 94, 98, 0.1); }
+.camera-settings-tabs button:hover { color: var(--mint-bright); }
+.camera-settings { padding-top: 20px; }
+.camera-settings-page { min-height: 220px; }
+.camera-settings-page[hidden] { display: none; }
+.camera-settings-dialog .camera-setting-group > button { min-height: 38px; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; color: var(--mint-bright); font-size: 12px; font-weight: 650; cursor: pointer; }
+.camera-settings-dialog .camera-setting-group > button:not(:disabled):hover { background: #ecf9f6; }
+.camera-settings-dialog .camera-setting-group > button:disabled { opacity: .5; cursor: default; }
+.camera-settings-dialog input[type="number"] { min-height: 38px; padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; color: var(--muted-2); font-size: 12px; }
+.camera-settings-dialog input[type="number"]:disabled { border-color: var(--line); background: #edf4f2; opacity: .75; }
+.camera-recording-path-dialog form { display: grid; gap: 12px; margin-top: 20px; }
+.camera-recording-path-dialog label { color: var(--muted-2); font-size: 12px; }
+.camera-recording-path-dialog input { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 9px; outline-color: var(--mint); background: #fff; color: var(--text); font-size: 12px; }
+.camera-recording-path-dialog input:disabled { border-color: var(--line); background: #edf4f2; opacity: .75; }
+.camera-recording-path-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.camera-recording-path-actions button { min-height: 36px; padding: 0 18px; border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; color: var(--muted-2); font-size: 12px; font-weight: 650; cursor: pointer; }
+.camera-recording-path-actions button[type="submit"] { border-color: var(--mint); background: var(--mint); color: #fff; }
+.camera-recording-path-actions button:disabled { opacity: .5; cursor: default; }
+.camera-setting-group { display: grid; gap: 14px; }
+.camera-setting-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text); font-size: 12px; }
+.camera-setting-head strong { font-weight: 650; }
+.camera-button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.camera-controls button, .camera-controls input[type="number"] { min-height: 36px; padding: 6px 9px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; color: var(--muted-2); font-size: 12px; }
+.camera-controls input[type="number"]:disabled { border-color: var(--line); background: #edf4f2; color: var(--muted-2); opacity: .75; cursor: default; }
+.camera-controls button { font-weight: 650; cursor: pointer; }
+.camera-controls button:not(:disabled):hover { border-color: var(--mint); color: var(--mint-bright); background: #ecf9f6; }
+.camera-controls #cameraAcquisitionToggle, .camera-controls #cameraRecordToggle { color: var(--mint-bright); background: rgba(22, 182, 154, 0.08); }
+.camera-controls #cameraAcquisitionToggle.active, .camera-controls #cameraRecordToggle.active { border-color: var(--mint); background: rgba(22, 182, 154, 0.16); }
+.camera-controls button:disabled { opacity: .5; cursor: default; }
+.camera-download { padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; color: var(--mint-bright); font-size: 12px; font-weight: 650; text-align: center; text-decoration: none; }
+.camera-check { display: flex; align-items: center; gap: 8px; color: var(--muted-2); font-size: 12px; }
+.camera-check input { accent-color: var(--mint); }
+.camera-setting-field { display: grid; gap: 5px; color: var(--muted-2); font-size: 12px; }
+.camera-setting-field input { width: 100%; }
+.camera-range-setting { display: grid; gap: 7px; color: var(--muted-2); font-size: 12px; }
+.camera-range-heading, .camera-range-limits { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.camera-range-heading output { color: var(--mint-bright); font-weight: 650; font-variant-numeric: tabular-nums; }
+.camera-range-limits { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.camera-range-slider { width: 100%; height: 8px; margin: 8px 0; appearance: none; border-radius: 999px; background: linear-gradient(to right, var(--mint) var(--range-fill, 0%), #d9e9e5 var(--range-fill, 0%)); cursor: pointer; }
+.camera-range-slider::-webkit-slider-thumb { width: 18px; height: 18px; appearance: none; border: 3px solid #fff; border-radius: 50%; background: var(--mint-bright); box-shadow: 0 1px 6px rgba(24, 59, 67, .22); }
+.camera-range-slider::-moz-range-thumb { width: 12px; height: 12px; border: 3px solid #fff; border-radius: 50%; background: var(--mint-bright); box-shadow: 0 1px 6px rgba(24, 59, 67, .22); }
+.camera-range-slider:disabled { opacity: .48; cursor: default; }
+.camera-white-balance-manual { display: grid; gap: 10px; }
+.camera-white-balance-manual[hidden] { display: none; }
+.camera-white-balance-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 6px; }
+.camera-white-balance-grid label { display: grid; gap: 5px; min-width: 0; color: var(--muted-2); font-size: 11px; }
+.camera-white-balance-grid label[hidden] { display: none; }
+.camera-white-balance-grid input { width: 100%; min-width: 0; }
+.camera-settings-dialog .camera-white-balance-manual > button { min-height: 38px; border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; color: var(--mint-bright); font-size: 12px; font-weight: 650; cursor: pointer; }
+.camera-settings-dialog .camera-white-balance-manual > button:disabled { opacity: .5; cursor: default; }
+.camera-settings-error { margin: 0; color: var(--red); font-size: 12px; overflow-wrap: anywhere; }
+.camera-settings-error[hidden] { display: none; }
+@media (min-width: 1001px) {
+  body.page-three { height: 100dvh; overflow-y: hidden; }
+  .dashboard[data-active-page="2"] { height: calc(100dvh - 78px); min-height: 0; padding-top: 12px; padding-bottom: 72px; overflow: hidden; }
+  .dashboard[data-active-page="2"] .camera-panel { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .camera-layout { flex: 1 1 auto; min-height: 0; margin-top: 14px; }
+  .camera-view { min-height: 0; }
+  .camera-controls { min-height: 0; overflow-y: auto; }
+}
+@media (max-width: 760px) { .camera-layout { grid-template-columns: 1fr; } .camera-view { min-height: 260px; } }
+@media (max-width: 560px) { .topbar > .camera-topbar-controls .field > span { display: none; } .camera-topbar-controls select { width: min(130px, 31vw); } .camera-topbar-controls { gap: 6px; } .camera-topbar-controls > .button { padding: 0 10px; } .camera-settings-dialog { padding: 17px; border-radius: 15px; } .camera-settings-tabs button { font-size: 10px; } }
 .dashboard[data-active-page="1"] .visualization-panel,
 .dashboard[data-active-page="1"] .console-panel { display: none; }
 .dashboard[data-active-page="1"] {
   display: block;
-  height: 100vh;
-  min-height: 400px;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
   padding: 0;
 }
 .dashboard[data-active-page="1"] .secondary-board-frame {
@@ -632,12 +734,64 @@ body.modal-open { overflow: hidden; }
 .secondary-board .page-navigation,
 .secondary-board .visualization-panel,
 .secondary-board .secondary-board-frame { display: none; }
+.secondary-board > .topbar { display: none; }
 .secondary-board .dashboard {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "console";
-  padding-bottom: 30px;
+  height: 100dvh;
+  padding-top: 12px;
+  padding-bottom: 72px;
+  align-items: stretch;
+  grid-template-columns: minmax(600px, 1fr) minmax(300px, 360px);
+  grid-template-areas: "console magtail";
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
 }
-.secondary-board .console-panel { width: min(100%, 1300px); margin-inline: auto; }
+.secondary-board .console-panel { width: 100%; min-height: 0; margin: 0; display: flex; flex-direction: column; overflow: hidden; }
+.secondary-board .serial-assistant-layout { flex: 1 1 auto; height: auto; min-height: 0; grid-template-rows: minmax(0, 1fr); }
+.secondary-board .serial-control-pane,
+.secondary-board .serial-receive-pane,
+.secondary-board .quick-commands-pane { height: 100%; min-height: 0; }
+.secondary-board .serial-receive-pane { max-height: 100%; }
+.secondary-board .console-output { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+.secondary-board .serial-control-section { overflow-y: auto; }
+.magtail-panel { display: none; }
+.secondary-board .magtail-panel { grid-area: magtail; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.magtail-content { min-height: 0; margin-top: 14px; display: grid; align-content: start; gap: 12px; overflow-y: auto; }
+.magtail-section { padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: #f8fcfb; }
+.magtail-section h3 { margin: 0 0 10px; font-size: 13px; }
+.magtail-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.magtail-action-grid .wide { grid-column: 1 / -1; }
+.magtail-action-grid button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.magtail-action-grid svg { width: 17px; height: 17px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.magtail-section button { min-height: 36px; padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; color: var(--muted-2); font-size: 12px; font-weight: 650; cursor: pointer; }
+.magtail-section button:hover { border-color: var(--mint); color: var(--mint-bright); background: #ecf9f6; }
+.magtail-section button.active { border-color: var(--mint); background: rgba(22, 182, 154, 0.12); color: var(--mint-bright); }
+.magtail-parameters { display: grid; gap: 9px; }
+.magtail-parameters h3 { margin-bottom: 1px; }
+.magtail-parameter-row { padding: 0 6px; display: grid; grid-template-columns: minmax(0, 1fr) 151px; align-items: center; gap: 8px; }
+.magtail-parameter-row label { color: var(--muted-2); font-size: 12px; white-space: nowrap; }
+.magtail-stepper { display: inline-grid; grid-template-columns: 30px 50px 30px 23px; align-items: center; gap: 6px; }
+.magtail-stepper button { min-height: 32px; width: 30px; padding: 0; font-size: 17px; line-height: 1; }
+.magtail-stepper input { width: 50px; height: 32px; padding: 0 4px; appearance: textfield; border: 1px solid var(--line-strong); border-radius: 7px; background: #fff; color: var(--text); font-size: 13px; text-align: center; }
+.magtail-stepper input:focus-visible { outline: none; border-color: var(--mint); box-shadow: 0 0 0 2px rgba(22, 182, 154, 0.18); }
+.magtail-stepper input::-webkit-inner-spin-button,
+.magtail-stepper input::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.magtail-stepper > span { color: var(--muted); font-size: 11px; }
+.magtail-voltage { padding: 8px 6px; display: grid; grid-template-columns: minmax(0, 1fr) 151px; align-items: center; gap: 8px; border-radius: 8px; background: rgba(22, 182, 154, 0.08); color: var(--muted-2); font-size: 11px; }
+.magtail-voltage output { color: var(--mint-bright); font: 700 13px ui-monospace, Consolas, monospace; text-align: right; }
+.magtail-parameters > button[type="submit"] { width: 100%; margin-top: 3px; border-color: var(--mint); background: var(--mint); color: #fff; }
+.magtail-parameters > button[type="submit"]:hover { background: var(--mint-bright); color: #fff; }
+.magtail-telemetry-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.magtail-telemetry-heading h3 { margin: 0; }
+.magtail-reading { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; color: var(--muted-2); font-size: 11px; }
+.magtail-reading strong { color: var(--text); font: 700 18px ui-monospace, Consolas, monospace; }
+.magtail-telemetry-toggle { width: 100%; }
+.magtail-warning-dialog { width: min(360px, calc(100% - 32px)); margin: auto; padding: 22px; border: 1px solid var(--line-strong); border-radius: 14px; background: #fff; color: var(--text); box-shadow: 0 24px 60px rgba(25, 72, 76, 0.24); }
+.magtail-warning-dialog::backdrop { background: rgba(25, 59, 66, 0.3); }
+.magtail-warning-dialog h2 { margin: 0 0 12px; color: var(--red); font-size: 17px; }
+.magtail-warning-dialog p { margin: 0 0 22px; font-size: 13px; }
+.magtail-warning-dialog button { display: block; min-height: 36px; margin-left: auto; padding: 0 18px; border: 0; border-radius: 8px; background: var(--mint); color: #fff; font-size: 12px; font-weight: 650; cursor: pointer; }
+.magtail-status { margin: 0; color: var(--mint-bright); font-size: 12px; }
+.magtail-status:empty { display: none; }
 
 .page-navigation {
   position: fixed;
@@ -701,7 +855,7 @@ body:not(.secondary-board) .dashboard[data-active-page="0"] {
 body:not(.secondary-board) .dashboard[data-active-page="0"] .console-panel { align-self: stretch; }
 
 @media (min-width: 1001px) {
-  body:not(.secondary-board):not(.page-two) { height: 100dvh; overflow-y: hidden; }
+  body:not(.secondary-board):not(.page-two):not(.page-three) { height: 100dvh; overflow-y: hidden; }
   body:not(.secondary-board) .dashboard[data-active-page="0"] {
     height: calc(100dvh - 78px);
     padding-top: 12px;
@@ -709,7 +863,8 @@ body:not(.secondary-board) .dashboard[data-active-page="0"] .console-panel { ali
     grid-template-rows: minmax(0, 1fr);
     overflow: hidden;
   }
-  body:not(.secondary-board) .dashboard[data-active-page="0"] .panel {
+  body:not(.secondary-board) .dashboard[data-active-page="0"] .visualization-panel,
+  body:not(.secondary-board) .dashboard[data-active-page="0"] .console-panel {
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -743,6 +898,30 @@ body:not(.secondary-board) .dashboard[data-active-page="0"] .console-panel { ali
     grid-template-areas: "visualization" "console";
   }
   .visualization-views { min-height: 260px; }
+  .secondary-board .dashboard {
+    height: auto;
+    min-height: 100dvh;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "console" "magtail";
+    grid-template-rows: auto auto;
+    overflow: visible;
+  }
+  .secondary-board .serial-assistant-layout { flex: none; height: auto; grid-template-rows: auto auto; }
+  .secondary-board .serial-control-pane,
+  .secondary-board .serial-receive-pane { height: var(--workspace-height); }
+  .secondary-board .serial-receive-pane { max-height: var(--workspace-height); }
+  .secondary-board .quick-commands-pane { height: 300px; }
+  .secondary-board .magtail-panel { overflow: visible; }
+  .secondary-board .magtail-content { overflow: visible; }
+}
+
+@media (max-width: 640px) {
+  .secondary-board .serial-control-pane { height: auto; }
+  .secondary-board .serial-receive-pane { height: 420px; max-height: 420px; }
+}
+
+@media (min-width: 1001px) and (max-width: 1180px) {
+  .secondary-board .serial-assistant-layout { grid-template-rows: minmax(0, 1fr) 170px; }
 }
 
 /* Serial assistant text is sized for the current dashboard layout. */
