@@ -9,8 +9,8 @@ const cameraUi = Object.fromEntries([
   "FrameRateEnabled", "FrameRate", "ApplyFrameRate", "SettingsError",
   "SettingsButton", "SettingsDialog", "SettingsClose", "TabExposure", "TabGain", "TabWhite",
   "TabFrameRate", "PageExposure", "PageGain", "PageWhite", "PageFrameRate",
-  "RecordingPathButton", "RecordingPathDialog", "RecordingPathClose", "RecordingPathForm",
-  "RecordingPathInput", "RecordingPathError", "RecordingPathCancel", "RecordingPathSave"
+  "RecordingPathButton", "RecordingPathDialog", "RecordingPathClose", "RecordingPathBrowse",
+  "RecordingPathInput", "RecordingPathError", "RecordingPathCancel"
 ].map((name) => [name, document.getElementById(`camera${name}`)]));
 
 let cameraState = { opened: false, acquiring: false };
@@ -91,18 +91,17 @@ function showCameraState(state) {
   cameraUi.RecordToggle.disabled = cameraBusy || !state.acquiring;
   cameraUi.RecordToggle.textContent = state.recording ? "停止录像" : "开始录像";
   cameraUi.RecordToggle.classList.toggle("active", Boolean(state.recording));
-  cameraUi.RecordingPathButton.disabled = cameraBusy;
+  cameraUi.RecordingPathButton.disabled = cameraBusy || recordingPathBusy;
   if (state.recordingDirectory && !cameraUi.RecordingPathDialog.open) {
     cameraUi.RecordingPathInput.value = state.recordingDirectory;
   }
-  cameraUi.RecordingPathInput.disabled = cameraBusy || recordingPathBusy || Boolean(state.recording);
-  cameraUi.RecordingPathSave.disabled = cameraBusy || recordingPathBusy || Boolean(state.recording);
+  cameraUi.RecordingPathBrowse.disabled = cameraBusy || recordingPathBusy || Boolean(state.recording);
   cameraUi.RecordingDownload.hidden = !state.lastRecording;
   if (state.lastRecording) {
     cameraUi.RecordingDownload.href = `/api/camera/recording/${encodeURIComponent(state.lastRecording)}`;
     cameraUi.RecordingDownload.download = state.lastRecording;
   }
-  cameraUi.Fps.textContent = `帧率：${state.fps ?? "--"}`;
+  cameraUi.Fps.textContent = state.fps == null ? "--" : `${state.fps} fps`;
   if (state.autoExposure != null) cameraUi.AutoExposure.checked = state.autoExposure;
   cameraUi.AutoExposure.disabled = settingsLocked;
   cameraUi.Exposure.disabled = settingsLocked || cameraUi.AutoExposure.checked;
@@ -207,10 +206,10 @@ cameraUi.RecordingPathButton.addEventListener("click", async () => {
     showCameraState(state);
     cameraUi.RecordingPathInput.value = state.recordingDirectory || "";
   } catch (error) {
-    cameraUi.RecordingPathError.textContent = error.message || "无法读取录像路径";
+    cameraUi.RecordingPathError.textContent = error.message || "无法读取存储路径";
     cameraUi.RecordingPathError.hidden = false;
   }
-  cameraUi.RecordingPathInput.focus();
+  cameraUi.RecordingPathBrowse.focus();
 });
 cameraUi.RecordingPathClose.addEventListener("click", () => cameraUi.RecordingPathDialog.close());
 cameraUi.RecordingPathCancel.addEventListener("click", () => cameraUi.RecordingPathDialog.close());
@@ -222,16 +221,17 @@ cameraUi.RecordingPathDialog.addEventListener("click", (event) => {
     cameraUi.RecordingPathDialog.close();
   }
 });
-cameraUi.RecordingPathForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (cameraState.recording || !cameraUi.RecordingPathInput.reportValidity()) return;
+cameraUi.RecordingPathBrowse.addEventListener("click", async () => {
+  if (cameraState.recording || recordingPathBusy) return;
   recordingPathBusy = true;
   showCameraState(cameraState);
   try {
-    showCameraState(await cameraRequest("record/directory", { directory: cameraUi.RecordingPathInput.value.trim() }));
-    cameraUi.RecordingPathDialog.close();
+    const result = await cameraRequest("record/browse", {});
+    showCameraState(result);
+    cameraUi.RecordingPathInput.value = result.recordingDirectory || "";
+    if (!result.cancelled) cameraUi.RecordingPathDialog.close();
   } catch (error) {
-    cameraUi.RecordingPathError.textContent = error.message || "无法保存录像路径";
+    cameraUi.RecordingPathError.textContent = error.message || "无法保存存储路径";
     cameraUi.RecordingPathError.hidden = false;
   } finally {
     recordingPathBusy = false;
@@ -323,12 +323,18 @@ cameraUi.ApplyFrameRate.addEventListener("click", () => {
     ...(cameraUi.FrameRateEnabled.checked ? { frameRate: Number(cameraUi.FrameRate.value) } : {})
   });
 });
-cameraUi.Snapshot.addEventListener("click", () => {
-  if (!cameraUi.Image.src) return;
-  const link = document.createElement("a");
-  link.href = cameraUi.Image.src;
-  link.download = `daheng-${new Date().toISOString().replace(/[:.]/g, "-")}.jpg`;
-  link.click();
+cameraUi.Snapshot.addEventListener("click", async () => {
+  cameraBusy = true;
+  showCameraState(cameraState);
+  try {
+    const result = await cameraRequest("snapshot", {});
+    toast(`图像已保存：${result.savedImage}`);
+  } catch (error) {
+    toast(error.message || "保存图像失败", "warn");
+  } finally {
+    cameraBusy = false;
+    showCameraState(cameraState);
+  }
 });
 
 document.querySelector('[data-page="2"]').addEventListener("click", async () => {
@@ -343,7 +349,7 @@ document.querySelector('[data-page="2"]').addEventListener("click", async () => 
     if (document.querySelector("#dashboard").dataset.activePage !== "2" || !cameraState.acquiring) return;
     try {
       const state = await cameraRequest("status");
-      cameraUi.Fps.textContent = `帧率：${state.fps ?? "--"}`;
+      cameraUi.Fps.textContent = state.fps == null ? "--" : `${state.fps} fps`;
     } catch {}
   }, 1000);
 });

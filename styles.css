@@ -636,6 +636,11 @@ body.modal-open { overflow: hidden; }
 .camera-select-field button { width: 36px; height: 36px; flex: none; padding: 0; border: 1px solid rgba(44, 113, 116, 0.08); border-radius: 12px; background: #eef9f7; color: var(--mint-bright); font-size: 20px; cursor: pointer; }
 .camera-select-field button:hover { background: #e5f5f2; }
 .camera-select-field button:disabled { opacity: .5; cursor: default; }
+@media (max-width: 1100px) {
+  .page-three > .topbar > .camera-topbar-controls { gap: 6px; }
+  .camera-topbar-controls select { width: min(180px, 24vw); }
+  .topbar > .camera-topbar-controls .button { padding: 0 10px; }
+}
 .dashboard[data-active-page="2"] { display: block; min-height: calc(100dvh - 78px); padding: 22px clamp(16px, 2vw, 32px) 94px; }
 .dashboard[data-active-page="2"] .visualization-panel,
 .dashboard[data-active-page="2"] .console-panel,
@@ -643,12 +648,13 @@ body.modal-open { overflow: hidden; }
 .dashboard[data-active-page="2"] .camera-panel { display: block; width: 100%; }
 .camera-panel .panel-heading { display: flex; align-items: center; justify-content: space-between; }
 .camera-panel .panel-heading h2 { margin: 0; }
-#cameraFps { color: var(--muted-2); font-size: 12px; font-weight: 650; }
 .camera-layout { display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 18px; margin-top: 18px; }
-.camera-view { min-height: 420px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #152525; color: #d2e2e5; font-size: 12px; }
-.camera-view img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.camera-view { position: relative; min-width: 0; aspect-ratio: 1292 / 964; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #152525; color: #d2e2e5; font-size: 12px; }
+.camera-view img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; }
 .camera-view img[hidden] { display: none; }
 .camera-controls { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+.camera-fps-card { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #f8fcfb; color: var(--muted-2); font-size: 12px; }
+.camera-fps-card strong { color: var(--mint-bright); font: 700 18px ui-monospace, Consolas, monospace; }
 .camera-actions { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #f8fcfb; }
 .camera-settings-dialog { width: min(480px, calc(100% - 32px)); max-height: calc(100dvh - 36px); margin: auto; padding: 20px; overflow-y: auto; border: 1px solid rgba(22, 182, 154, 0.25); border-radius: 18px; background: linear-gradient(150deg, #ffffff, #f5fcfa); color: var(--text); box-shadow: 0 28px 70px rgba(25, 72, 76, 0.24); animation: modal-card-in 180ms ease-out; }
 .camera-settings-dialog::backdrop { background: rgba(25, 59, 66, 0.3); backdrop-filter: blur(7px); }
@@ -664,13 +670,14 @@ body.modal-open { overflow: hidden; }
 .camera-settings-dialog .camera-setting-group > button:disabled { opacity: .5; cursor: default; }
 .camera-settings-dialog input[type="number"] { min-height: 38px; padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; color: var(--muted-2); font-size: 12px; }
 .camera-settings-dialog input[type="number"]:disabled { border-color: var(--line); background: #edf4f2; opacity: .75; }
-.camera-recording-path-dialog form { display: grid; gap: 12px; margin-top: 20px; }
+.camera-recording-path-content { display: grid; gap: 12px; margin-top: 20px; }
 .camera-recording-path-dialog label { color: var(--muted-2); font-size: 12px; }
 .camera-recording-path-dialog input { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 9px; outline-color: var(--mint); background: #fff; color: var(--text); font-size: 12px; }
 .camera-recording-path-dialog input:disabled { border-color: var(--line); background: #edf4f2; opacity: .75; }
+.camera-recording-path-dialog input[readonly] { background: #edf4f2; }
 .camera-recording-path-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .camera-recording-path-actions button { min-height: 36px; padding: 0 18px; border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; color: var(--muted-2); font-size: 12px; font-weight: 650; cursor: pointer; }
-.camera-recording-path-actions button[type="submit"] { border-color: var(--mint); background: var(--mint); color: #fff; }
+.camera-recording-path-actions #cameraRecordingPathBrowse { border-color: var(--mint); background: var(--mint); color: #fff; }
 .camera-recording-path-actions button:disabled { opacity: .5; cursor: default; }
 .camera-setting-group { display: grid; gap: 14px; }
 .camera-setting-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text); font-size: 12px; }
@@ -706,15 +713,15 @@ body.modal-open { overflow: hidden; }
 .camera-settings-dialog .camera-white-balance-manual > button:disabled { opacity: .5; cursor: default; }
 .camera-settings-error { margin: 0; color: var(--red); font-size: 12px; overflow-wrap: anywhere; }
 .camera-settings-error[hidden] { display: none; }
-@media (min-width: 1001px) {
+@media (min-width: 761px) {
   body.page-three { height: 100dvh; overflow-y: hidden; }
   .dashboard[data-active-page="2"] { height: calc(100dvh - 78px); min-height: 0; padding-top: 12px; padding-bottom: 72px; overflow: hidden; }
   .dashboard[data-active-page="2"] .camera-panel { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   .camera-layout { flex: 1 1 auto; min-height: 0; margin-top: 14px; }
-  .camera-view { min-height: 0; }
+  .camera-view { width: min(100%, calc(134.025dvh - 335.0625px)); min-height: 0; justify-self: center; align-self: start; }
   .camera-controls { min-height: 0; overflow-y: auto; }
 }
-@media (max-width: 760px) { .camera-layout { grid-template-columns: 1fr; } .camera-view { min-height: 260px; } }
+@media (max-width: 760px) { .camera-layout { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .topbar > .camera-topbar-controls .field > span { display: none; } .camera-topbar-controls select { width: min(130px, 31vw); } .camera-topbar-controls { gap: 6px; } .camera-topbar-controls > .button { padding: 0 10px; } .camera-settings-dialog { padding: 17px; border-radius: 15px; } .camera-settings-tabs button { font-size: 10px; } }
 .dashboard[data-active-page="1"] .visualization-panel,
 .dashboard[data-active-page="1"] .console-panel { display: none; }

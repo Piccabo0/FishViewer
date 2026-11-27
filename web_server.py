@@ -13,6 +13,7 @@ import os
 import shutil
 import socket
 import sys
+import threading
 import webbrowser
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -25,6 +26,30 @@ DATA_DIR = PROJECT_DIR / "data"
 COMMANDS_FILE = DATA_DIR / "quick_commands.json"
 IMU_CONFIG_FILE = DATA_DIR / "imu_frame_config.json"
 SERVO_CONFIG_FILE = DATA_DIR / "servo_config.json"
+DIRECTORY_PICKER_LOCK = threading.Lock()
+
+
+def choose_camera_directory(initial_directory: str) -> str:
+    with DIRECTORY_PICKER_LOCK:
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+        except Exception as exc:
+            raise RuntimeError("无法打开文件夹选择窗口，请在运行网页服务的电脑上操作") from exc
+        try:
+            root.withdraw()
+            root.attributes("-topmost", True)
+            root.update()
+            initial = Path(initial_directory)
+            return filedialog.askdirectory(
+                parent=root,
+                title="选择图像与视频存储文件夹",
+                initialdir=str(initial if initial.is_dir() else PROJECT_DIR),
+                mustexist=True,
+            )
+        finally:
+            root.destroy()
 
 
 class FishLinkRequestHandler(SimpleHTTPRequestHandler):
@@ -51,7 +76,7 @@ class FishLinkRequestHandler(SimpleHTTPRequestHandler):
             return
         if self.path.startswith("/api/camera/recording/"):
             filename = self.path.removeprefix("/api/camera/recording/")
-            if not filename.startswith("daheng-") or not filename.endswith(".avi") or any(
+            if not filename.endswith(".avi") or any(
                 character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-." for character in filename
             ):
                 self.send_error(404)
@@ -127,7 +152,7 @@ class FishLinkRequestHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self) -> None:
-        if self.path not in {"/api/camera/open", "/api/camera/start", "/api/camera/stop", "/api/camera/close", "/api/camera/configure", "/api/camera/record/start", "/api/camera/record/stop", "/api/camera/record/directory"}:
+        if self.path not in {"/api/camera/open", "/api/camera/start", "/api/camera/stop", "/api/camera/close", "/api/camera/configure", "/api/camera/record/start", "/api/camera/record/stop", "/api/camera/record/directory", "/api/camera/record/browse", "/api/camera/snapshot"}:
             self.send_error(404)
             return
         try:
@@ -154,8 +179,24 @@ class FishLinkRequestHandler(SimpleHTTPRequestHandler):
                 camera_backend.stop_recording()
             elif action == "record/directory":
                 if set(data) != {"directory"}:
-                    raise ValueError("录像路径无效")
+                    raise ValueError("存储路径无效")
                 camera_backend.set_recording_directory(data["directory"])
+            elif action == "record/browse":
+                if data:
+                    raise ValueError("无效请求")
+                camera_state = camera_backend.status()
+                if camera_state["recording"]:
+                    raise ValueError("请先停止录像再修改存储路径")
+                selected = choose_camera_directory(camera_state["recordingDirectory"])
+                if selected:
+                    camera_backend.set_recording_directory(selected)
+                self.send_json({**camera_backend.status(), "cancelled": not bool(selected)})
+                return
+            elif action == "snapshot":
+                if data:
+                    raise ValueError("无效请求")
+                self.send_json({"savedImage": camera_backend.save_snapshot()})
+                return
             else:
                 if any(key not in {"autoExposure", "exposure", "autoWhite", "whiteBalanceRatios", "autoGain", "gain", "frameRateEnabled", "frameRate"} for key in data):
                     raise ValueError("无效相机参数")

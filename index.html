@@ -107,7 +107,8 @@
           <button id="cameraRefresh" type="button" aria-label="刷新相机列表" title="刷新相机列表">↻</button>
         </div>
         <button id="cameraToggle" class="button primary" type="button" disabled>打开相机</button>
-        <button id="cameraSettingsButton" class="button secondary" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="cameraSettingsDialog">设置</button>
+        <button id="cameraSettingsButton" class="button secondary" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="cameraSettingsDialog">配置相机</button>
+        <button id="cameraRecordingPathButton" class="button secondary" type="button" aria-haspopup="dialog" aria-controls="cameraRecordingPathDialog">存储路径设置</button>
       </div>
 
     </header>
@@ -345,13 +346,14 @@
       </section>
       <iframe id="secondaryBoard" class="secondary-board-frame" title="第二块开发板控制台" allow="serial" aria-hidden="true" inert></iframe>
       <section class="panel camera-panel" aria-labelledby="cameraTitle" aria-hidden="true" inert>
-        <div class="panel-heading"><h2 id="cameraTitle">大恒相机</h2><span id="cameraFps">帧率：--</span></div>
+        <div class="panel-heading"><h2 id="cameraTitle">大恒相机</h2></div>
         <div class="camera-layout">
           <div class="camera-view"><img id="cameraImage" alt="大恒相机实时画面" hidden /><span id="cameraPlaceholder">打开相机并开启显示后显示画面</span></div>
           <div class="camera-controls">
+            <div class="camera-fps-card"><span>帧率</span><strong id="cameraFps">--</strong></div>
             <div class="camera-actions">
               <div class="camera-button-row"><button id="cameraAcquisitionToggle" type="button" disabled>开启显示</button><button id="cameraSnapshot" type="button" disabled>截取图像</button></div>
-              <div class="camera-button-row"><button id="cameraRecordingPathButton" type="button">录像存储路径</button><button id="cameraRecordToggle" type="button" disabled>开始录像</button></div>
+              <button id="cameraRecordToggle" type="button" disabled>开始录像</button>
               <a id="cameraRecordingDownload" class="camera-download" hidden>下载录像</a>
             </div>
           </div>
@@ -431,18 +433,18 @@
 
     <dialog id="cameraRecordingPathDialog" class="camera-settings-dialog camera-recording-path-dialog" aria-labelledby="cameraRecordingPathTitle">
       <header class="serial-config-dialog-heading">
-        <h2 id="cameraRecordingPathTitle">录像存储路径</h2>
-        <button id="cameraRecordingPathClose" type="button" aria-label="关闭录像存储路径配置">×</button>
+        <h2 id="cameraRecordingPathTitle">图像与视频存储路径</h2>
+        <button id="cameraRecordingPathClose" type="button" aria-label="关闭存储路径设置">×</button>
       </header>
-      <form id="cameraRecordingPathForm">
+      <div class="camera-recording-path-content">
         <label for="cameraRecordingPathInput">文件夹路径</label>
-        <input id="cameraRecordingPathInput" type="text" required autocomplete="off" spellcheck="false" />
+        <input id="cameraRecordingPathInput" type="text" readonly />
         <p id="cameraRecordingPathError" class="camera-settings-error" role="alert" hidden></p>
         <div class="camera-recording-path-actions">
-          <button id="cameraRecordingPathCancel" type="button">取消</button>
-          <button id="cameraRecordingPathSave" type="submit">保存</button>
+          <button id="cameraRecordingPathCancel" type="button">关闭</button>
+          <button id="cameraRecordingPathBrowse" type="button">选择文件夹</button>
         </div>
-      </form>
+      </div>
     </dialog>
 
     <dialog id="servoSettingsDialog" class="quick-command-dialog servo-settings-dialog" aria-labelledby="servoSettingsTitle">

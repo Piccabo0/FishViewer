@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-RECORDINGS_DIR = Path(__file__).resolve().parent / "recordings"
+OUTPUT_DIR = Path(__file__).resolve().parent / "output"
 RECORDING_CONFIG_FILE = Path(__file__).resolve().parent / "data" / "camera_recording_config.json"
 
 
@@ -23,7 +23,7 @@ class CameraBackend:
         self.recording_path = None
         self.last_recording = None
         self.last_recording_path = None
-        self.recordings_dir = RECORDINGS_DIR
+        self.recordings_dir = OUTPUT_DIR
         try:
             directory = json.loads(RECORDING_CONFIG_FILE.read_text(encoding="utf-8"))["directory"]
             if isinstance(directory, str):
@@ -254,7 +254,7 @@ class CameraBackend:
                 raise ValueError("正在录像")
             import cv2
             self.recordings_dir.mkdir(parents=True, exist_ok=True)
-            self.recording_path = self.recordings_dir / f"daheng-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.avi"
+            self.recording_path = self.recordings_dir / f"{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.avi"
             try:
                 fps = float(self.camera.AcquisitionFrameRate.get())
                 self.recording_fps = fps if 0 < fps <= 240 else 30.0
@@ -285,25 +285,25 @@ class CameraBackend:
 
     def set_recording_directory(self, directory):
         if type(directory) is not str or not 0 < len(directory.strip()) <= 1024 or "\x00" in directory:
-            raise ValueError("录像路径无效")
+            raise ValueError("存储路径无效")
         path = Path(directory.strip()).expanduser()
         if not path.is_absolute():
-            path = RECORDINGS_DIR.parent / path
+            path = OUTPUT_DIR.parent / path
         try:
             path = path.resolve()
         except (OSError, RuntimeError):
-            raise ValueError("录像路径无效") from None
+            raise ValueError("存储路径无效") from None
         with self.lock:
             if self.recording:
                 raise ValueError("请先停止录像再修改存储路径")
             if path.exists() and not path.is_dir():
-                raise ValueError("录像路径不是文件夹")
+                raise ValueError("存储路径不是文件夹")
             try:
                 path.mkdir(parents=True, exist_ok=True)
             except OSError:
-                raise ValueError("无法创建录像文件夹") from None
+                raise ValueError("无法创建存储文件夹") from None
             if not os.access(path, os.W_OK):
-                raise ValueError("录像文件夹不可写")
+                raise ValueError("存储文件夹不可写")
             RECORDING_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
             payload = json.dumps({"directory": str(path)}, ensure_ascii=False, indent=2) + "\n"
             temporary = RECORDING_CONFIG_FILE.with_suffix(".json.tmp")
@@ -387,6 +387,17 @@ class CameraBackend:
         if not ok:
             raise RuntimeError("图像编码失败")
         return encoded.tobytes()
+
+    def save_snapshot(self):
+        with self.lock:
+            if not self.acquiring or self.frame is None:
+                raise ValueError("请先开启显示")
+            directory = self.recordings_dir
+            image = self.jpeg()
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.jpg"
+        path.write_bytes(image)
+        return path.name
 
 
 camera_backend = CameraBackend()
